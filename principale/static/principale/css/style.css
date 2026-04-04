@@ -1,0 +1,507 @@
+:root {
+    /* Palette principale - Tons de bleu gris modernes */
+    --primary-color: #4a6fa5;       /* Bleu acier moyen */
+    --primary-light: #6d8ebc;       /* Version plus claire */
+    --primary-dark: #345480;        /* Version plus foncée */
+    --primary-very-light: #e9eff8;  /* Version très claire pour fonds */
+
+    /* Couleurs des puces état des paiements (conservées) */
+    --success-color: #2ecc71;       /* Vert */
+    --danger-color: #e74c3c;        /* Rouge */
+    --warning-color: #f39c12;       /* Orange/Jaune */
+    --info-color: #1abc9c;          /* Turquoise */
+
+    /* Palette moderne pour les cartes */
+    --card1-color: #48a0dc;         /* Bleu ciel */
+    --card2-color: #64a19d;         /* Turquoise grisé */
+    --card3-color: #4d7ea8;         /* Bleu canard */
+    --card4-color: #5c6bc0;         /* Indigo */
+
+    /* Neutrals */
+    --neutral-dark: #2d3748;        /* Presque noir mais plus doux */
+    --neutral-medium: #718096;      /* Gris moyen */
+    --neutral-light: #e2e8f0;       /* Gris très clair */
+    --neutral-white: #ffffff;       /* Blanc pur */
+
+    /* Ajout des variables pour le texte */
+    --text-dark: var(--neutral-dark);
+    --text-light: var(--neutral-white);
+}
+
+/* Police Futura ou équivalents */
+body {
+    font-family: Futura, "Century Gothic", "Trebuchet MS", Arial, sans-serif;
+    color: var(--text-dark);
+    overflow-x: hidden;
+    font-size: 15px; /* Augmenté de 13px à 15px */
+    zoom: 1; /* Suppression du zoom réducteur */
+}
+
+/* Barre latérale */
+.sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 100;
+    padding-top: 25px;
+    box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
+    background-color: var(--primary-color);
+    color: var(--text-light);
+    width: 220px;
+    max-width: 220px;
+}
+
+.sidebar .nav-link {
+    color: rgba(255, 255, 255, 0.8);
+    padding: 0.5rem 0.6rem;
+    margin: 0.1rem 0;
+    border-radius: 0.25rem;
+    transition: all 0.2s ease;
+    font-size: 1.05rem; /* Augmenté de 0.95rem */
+}
+
+.sidebar .nav-link:hover {
+    background-color: var(--primary-light);
+    color: white;
+}
+
+.sidebar .nav-link.active {
+    background-color: var(--primary-light);
+    color: white;
+    font-weight: 500;
+}
+
+.sidebar .fa, .sidebar .fas, .sidebar .far {
+    margin-right: 8px;
+    width: 16px;
+    text-align: center;
+}
+
+/* Style pour le sélecteur de SCI */
+.sci-selector {
+    margin: 0.5rem 0 1rem 0;
+}
+
+.sci-selector .dropdown-toggle {
+    background-color: var(--primary-light);
+    color: white;
+    border: none;
+    width: 100%;
+    text-align: center;
+    padding: 0.4rem 0.5rem;
+    font-size: 1rem; /* Augmenté de 0.9rem */
+    border-radius: 4px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* Supprime le triangle bootstrap par défaut */
+.sci-selector .dropdown-toggle::after {
+    display: none;
+}
+
+/* Style spécifique pour le sélecteur de SCI sur mobile */
+@media (max-width: 767.98px) {
+    .sci-selector .dropdown-toggle .sci-name {
+        max-width: 70%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    /* Style explicite pour le bouton sur Mobile Safari */
+    .sci-selector .dropdown-toggle {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        width: 100% !important;
+        text-align: left !important;
+    }
+
+    /* Amélioration pour le menu déroulant sur mobile */
+    .dropdown-menu {
+        max-height: 80vh;
+        overflow-y: auto;
+    }
+}
+
+/* Supprime le triangle bootstrap par défaut */
+.sci-selector .dropdown-toggle::after {
+    display: none;
+}
+
+/* Contenu principal */
+.content-main {
+    padding: 1rem;
+    margin-left: 220px; /* Largeur fixe pour correspondre à la sidebar */
+    width: calc(100% - 220px); /* Calculer la largeur en fonction de la largeur de la sidebar */
+    max-width: 100%;
+}
+
+/* Mobile nav toggle */
+.mobile-nav-toggle {
+    display: none;
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    z-index: 999;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 5px 10px;
+    cursor: pointer;
+}
+
+/* Mobile navbar */
+.mobile-nav {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background-color: var(--primary-color);
+    padding: 10px;
+    z-index: 100;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.mobile-nav h5 {
+    color: white;
+    margin-bottom: 0;
+    text-align: center;
+    font-size: 0.9rem;
+}
+
+/* Cards pour tableau de bord */
+.card {
+    border: none;
+    border-radius: 4px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    margin-bottom: 0.75rem;
+    overflow: hidden;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+}
+
+/* Style épuré et moderne pour les cartes */
+.dashboard-card {
+    background-color: var(--neutral-white);
+    border-left: 3px solid var(--primary-color);
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.dashboard-card-1 {
+    border-left-color: var(--card1-color);
+}
+
+.dashboard-card-2 {
+    border-left-color: var(--card2-color);
+}
+
+.dashboard-card-3 {
+    border-left-color: var(--card3-color);
+}
+
+.dashboard-card-4 {
+    border-left-color: var(--card4-color);
+}
+
+.dashboard-card .card-title {
+    color: var(--neutral-medium);
+    font-size: 0.95rem; /* Augmenté de 0.85rem */
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.dashboard-card .card-text {
+    color: var(--neutral-dark);
+    font-size: 1.7rem; /* Augmenté de 1.5rem */
+    font-weight: 600;
+}
+
+/* Tables */
+.table {
+    font-size: 0.925rem; /* Augmenté de 0.825rem */
+}
+
+.table thead th {
+    background-color: var(--primary-very-light);
+    color: var(--primary-color);
+    border-bottom: 2px solid var(--primary-color);
+    font-weight: 600;
+    padding: 0.5rem;
+}
+
+.table td, .table th {
+    padding: 0.5rem;
+    vertical-align: middle;
+}
+
+/* Table responsive */
+.table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Colonnes spécifiques pour les tableaux */
+.actions-column {
+    white-space: nowrap;
+    width: 1%;
+}
+
+.text-column {
+    max-width: 180px;
+    white-space: normal;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Styles pour les transactions */
+.transaction-table td, .transaction-table th {
+    padding: 0.4rem;
+    font-size: 0.95rem; /* Augmenté de 0.85rem */
+}
+
+.transaction-table .btn-sm {
+    padding: 0.2rem 0.35rem;
+    font-size: 0.8rem; /* Légèrement augmenté de 0.7rem */
+}
+
+/* Badges et boutons */
+.btn-primary {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.btn-primary:hover, .btn-primary:focus {
+    background-color: var(--primary-dark);
+    border-color: var(--primary-dark);
+}
+
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.85rem; /* Augmenté de 0.75rem */
+}
+
+/* Page header */
+.page-header {
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.page-header h1 {
+    color: var(--primary-color);
+    font-size: 1.4rem; /* Augmenté de 1.25rem */
+    font-weight: 600;
+}
+
+/* Améliorations pour les formulaires */
+.form-control, .form-select {
+    font-size: 1rem; /* Augmenté de 0.9rem */
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(17, 34, 122, 0.25);
+}
+
+/* Format des montants */
+.amount {
+    white-space: nowrap;
+    font-family: "Courier New", monospace;
+    font-size: 0.9rem; /* Augmenté de 0.8rem */
+}
+
+/* Styles pour les cartes du tableau de bord */
+.card-recap {
+    border: none;
+    border-radius: 6px;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
+    margin-bottom: 1.25rem;
+}
+
+/* Carte des biens immobiliers */
+.card-biens {
+    background-color: var(--card1-color);
+    color: white;
+}
+
+/* Carte des locataires actifs */
+.card-locataires {
+    background-color: var(--card2-color);
+    color: white;
+}
+
+/* Carte des recettes */
+.card-recettes {
+    background-color: var(--card3-color);
+    color: white;
+}
+
+/* Carte des dépenses */
+.card-depenses {
+    background-color: var(--card4-color);
+    color: white;
+}
+
+/* Styles pour les icônes des cartes */
+.card-recap .card-icon {
+    font-size: 1.75rem;
+    opacity: 0.8;
+    margin-bottom: 0.4rem;
+}
+
+/* Styles pour les titres des cartes */
+.card-recap .card-title {
+    font-size: 1rem; /* Augmenté de 0.9rem */
+    font-weight: 500;
+    margin-bottom: 0.4rem;
+}
+
+/* Styles pour les valeurs des cartes */
+.card-recap .card-value {
+    font-size: 1.6rem; /* Augmenté de 1.4rem */
+    font-weight: 600;
+}
+
+/* Adaptations Responsive */
+@media (min-width: 1400px) {
+    body {
+        font-size: 15px; /* Augmenté de 13px */
+    }
+
+    .content-main {
+        padding: 1rem;
+    }
+}
+
+@media (max-width: 991.98px) {
+    .sidebar {
+        width: 200px;
+    }
+
+    .content-main {
+        margin-left: 200px;
+        width: calc(100% - 200px);
+    }
+}
+
+@media (max-width: 767.98px) {
+    body {
+        font-size: 16px; /* Augmenté de 14px pour mobile */
+    }
+
+    .content-main {
+        margin-left: 0;
+        padding-top: 60px; /* Espace pour la barre de navigation mobile */
+        width: 100%; /* Pleine largeur sur mobile */
+    }
+
+    .sidebar {
+        transform: translateX(-100%);
+        width: 250px; /* Largeur de la sidebar sur mobile */
+        padding-top: 60px; /* Espace pour la barre de navigation mobile */
+        display: block !important; /* Force l'affichage sur mobile quand nécessaire */
+    }
+
+    .sidebar.show {
+        transform: translateX(0);
+    }
+
+    /* Affichage de l'overlay quand le menu est ouvert */
+    .sidebar-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 99;
+    }
+
+    .sidebar-overlay.show {
+        display: block;
+    }
+
+    /* Affichage de la barre de navigation mobile */
+    .mobile-nav {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .mobile-nav-toggle {
+        display: block;
+    }
+
+    /* Adaptations pour les cartes sur mobile */
+    .card-recap .card-value {
+        font-size: 1.5rem; /* Augmenté de 1.35rem */
+    }
+
+    .dashboard-card .card-text {
+        font-size: 1.5rem; /* Augmenté de 1.35rem */
+    }
+}
+
+/* Amélioration de l'accessibilité du tableau */
+@media (max-width: 575.98px) {
+    .table-responsive {
+        border: 0;
+    }
+
+    .table-responsive table {
+        width: 100%;
+    }
+
+    /* Styles pour les tables qui doivent scroller horizontalement */
+    .table-responsive-scroll {
+        display: block;
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+}
+/* Format spécifique des montants dans le bilan comptable */
+.amount {
+    white-space: nowrap;
+    font-weight: 500;
+}
+
+/* Couleurs personnalisées pour les montants positifs/négatifs */
+.positive-amount {
+    color: var(--success-color);
+}
+
+.negative-amount {
+    color: var(--danger-color);
+}
+
+/* Optimisations pour le tableau du bilan */
+.table-responsive-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+/* Ajustements pour les colonnes du tableau de bilan */
+.table th.text-center,
+.table td.text-center {
+    text-align: center !important;
+}
+
+.table th.text-end,
+.table td.text-end {
+    text-align: right !important;
+    padding-right: 8px;
+}
