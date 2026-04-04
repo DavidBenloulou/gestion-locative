@@ -46,13 +46,14 @@
                         <td>
                             <input type="text"
                                    data-field="{{ item.field_name }}"
+                                   data-montant-paye="{{ item.montant_paye }}"
                                    class="form-control form-control-sm text-end om-input"
                                    value="{% if item.montant_attendu %}{{ item.montant_attendu }}{% endif %}"
                                    placeholder="0.00"
                                    style="width: 120px;">
                         </td>
                         <td class="text-end">{{ item.montant_paye|floatformat:2 }} €</td>
-                        <td class="text-end">
+                        <td class="text-end om-reste">
                             {% if item.reste_a_payer != None %}
                                 {% if item.reste_a_payer == 0 %}
                                     <span class="text-success">0,00 €</span>
@@ -65,7 +66,7 @@
                                 -
                             {% endif %}
                         </td>
-                        <td>
+                        <td class="om-statut">
                             {% if item.statut == "OK" %}
                                 <span class="badge bg-success">OK</span>
                             {% elif item.statut == "Partiel" %}
@@ -95,10 +96,50 @@ const SAVE_URL = "{{ save_om_url }}";
 const ANNEE = "{{ annee_selectionnee }}";
 const CSRF = document.querySelector('[name=csrfmiddlewaretoken]').value;
 
-function showStatus(input, ok) {
+function fmt(val) {
+    return val.toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' €';
+}
+
+function updateLigne(input, ok) {
+    // Feedback visuel sur le champ
     input.classList.remove('is-valid', 'is-invalid');
     input.classList.add(ok ? 'is-valid' : 'is-invalid');
     setTimeout(() => input.classList.remove('is-valid', 'is-invalid'), 2000);
+
+    if (!ok) return;
+
+    const row = input.closest('tr');
+    const montantPaye = parseFloat(input.getAttribute('data-montant-paye')) || 0;
+    const montantAttenduStr = input.value.trim().replace(',', '.');
+    const montantAttendu = montantAttenduStr === '' ? null : parseFloat(montantAttenduStr);
+
+    const tdReste = row.querySelector('.om-reste');
+    const tdStatut = row.querySelector('.om-statut');
+
+    // Mise à jour "Reste à payer"
+    if (montantAttendu === null || isNaN(montantAttendu)) {
+        tdReste.innerHTML = '-';
+    } else {
+        const reste = Math.max(montantAttendu - montantPaye, 0);
+        if (reste === 0) {
+            tdReste.innerHTML = '<span class="text-success">' + fmt(0) + '</span>';
+        } else {
+            tdReste.innerHTML = '<span class="text-danger">' + fmt(reste) + '</span>';
+        }
+    }
+
+    // Mise à jour "Statut"
+    let badge;
+    if (montantAttendu === null || isNaN(montantAttendu)) {
+        badge = '<span class="badge bg-secondary">Non défini</span>';
+    } else if (montantPaye >= montantAttendu) {
+        badge = '<span class="badge bg-success">OK</span>';
+    } else if (montantPaye > 0) {
+        badge = '<span class="badge bg-warning text-dark">Partiel</span>';
+    } else {
+        badge = '<span class="badge bg-danger">Non payé</span>';
+    }
+    tdStatut.innerHTML = badge;
 }
 
 function saveMontant(input) {
@@ -116,8 +157,8 @@ function saveMontant(input) {
         })
     })
     .then(r => r.json())
-    .then(data => showStatus(input, data.ok))
-    .catch(() => showStatus(input, false));
+    .then(data => updateLigne(input, data.ok))
+    .catch(() => updateLigne(input, false));
 }
 
 document.querySelectorAll('.om-input').forEach(input => {
