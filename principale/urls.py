@@ -34,5 +34,5 @@ urlpatterns = [
     path('export-etat-cautions/', views.export_etat_cautions, name='export_etat_cautions'),
     path('historique-frais-bien/', views.historique_frais_bien, name='historique_frais_bien'),
     path('ordures-menageres/', views.gestion_om, name='gestion_om'),
-
+    path('ordures-menageres/save/', views.save_montant_om, name='save_montant_om'),
 ]

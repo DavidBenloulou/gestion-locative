@@ -67,6 +67,7 @@ def dashboard(request):
         'bilan': bilan,
         'annee_courante': annee_courante,
         'annees_disponibles': annees_disponibles,
+        'annees_export': list(range(2024, annee_courante + 1)),
     }
 
     return render(request, 'principale/dashboard.html', context)
@@ -2636,16 +2637,6 @@ def get_biens_locataire(request, locataire_id):
 def apercu_impression_creances(request):
     """Vue pour l'export des créances en Excel avec filtre date optionnel"""
 
-    if 'format' not in request.GET and 'generer_pdf' not in request.GET:
-        return render(request, 'principale/export_selection_format.html', {
-            'titre': 'Export de l\'état des créances',
-            'action_url': reverse('apercu_impression_creances'),
-            'show_year_selector': False,
-            'show_date_filter': True,
-            'date_fin_defaut': date.today().strftime('%Y-%m-%d'),
-            'excel_only': True,
-        })
-
     date_fin_str = request.GET.get('date_fin', '')
     if date_fin_str:
         try:
@@ -3444,20 +3435,7 @@ def export_mouvements_locataires(request):
     except ValueError:
         annee_selectionnee = annee_courante
 
-    # Si aucun format spécifié, afficher la page de sélection du format
-    if 'format' not in request.GET:
-        # Liste des années disponibles (de 2024 à l'année courante)
-        annees_disponibles = range(2024, annee_courante + 1)
-
-        return render(request, 'principale/export_selection_format.html', {
-            'titre': 'Export des mouvements de locataires',
-            'action_url': reverse('export_mouvements_locataires'),
-            'annees_disponibles': annees_disponibles,
-            'annee_selectionnee': annee_selectionnee,
-            'show_year_selector': True  # Activer le sélecteur d'année
-        })
-
-    # Sinon, générer l'export dans le format demandé
+    # Générer l'export dans le format demandé
     format_export = request.GET.get('format', 'pdf')
 
     # Date de début et fin de l'année sélectionnée
@@ -3536,20 +3514,7 @@ def export_etat_cautions(request):
     except ValueError:
         annee_selectionnee = annee_courante
 
-    # Si aucun format spécifié, afficher la page de sélection du format
-    if 'format' not in request.GET:
-        # Liste des années disponibles (de 2024 à l'année courante)
-        annees_disponibles = range(2024, annee_courante + 1)
-
-        return render(request, 'principale/export_selection_format.html', {
-            'titre': 'Export de l\'état des dépôts de garantie',
-            'action_url': reverse('export_etat_cautions'),
-            'annees_disponibles': annees_disponibles,
-            'annee_selectionnee': annee_selectionnee,
-            'show_year_selector': True  # Activer le sélecteur d'année
-        })
-
-    # Sinon, générer l'export dans le format demandé
+    # Générer l'export dans le format demandé
     format_export = request.GET.get('format', 'pdf')
 
     # Récupérer toutes les locations (actives et terminées)
@@ -4539,6 +4504,54 @@ def gestion_om(request):
         'tableau_om': tableau_om,
         'annee_selectionnee': annee_selectionnee,
         'annees_disponibles': annees_disponibles,
+        'save_om_url': '/ordures-menageres/save/',
     }
 
     return render(request, 'principale/gestion_om.html', context)
+
+
+def save_montant_om(request):
+    """Endpoint AJAX pour enregistrer un montant OM à la saisie"""
+    if request.method != 'POST':
+        return JsonResponse({'ok': False, 'error': 'Méthode non autorisée'}, status=405)
+
+    field_name = request.POST.get('field_name', '')
+    value = request.POST.get('value', '').strip().replace(',', '.')
+    annee_str = request.POST.get('annee', '')
+
+    try:
+        annee = int(annee_str)
+    except ValueError:
+        return JsonResponse({'ok': False, 'error': 'Année invalide'}, status=400)
+
+    parts = field_name.split('_')
+    if len(parts) != 3 or parts[0] != 'montant':
+        return JsonResponse({'ok': False, 'error': 'Champ invalide'}, status=400)
+
+    try:
+        locataire_id = int(parts[1])
+        bien_id = int(parts[2])
+    except ValueError:
+        return JsonResponse({'ok': False, 'error': 'Identifiants invalides'}, status=400)
+
+    try:
+        if value == '' or value == '0':
+            MontantOM.objects.filter(
+                sci=request.current_sci,
+                locataire_id=locataire_id,
+                bien_id=bien_id,
+                annee=annee
+            ).delete()
+        else:
+            montant = decimal.Decimal(value)
+            MontantOM.objects.update_or_create(
+                sci=request.current_sci,
+                locataire_id=locataire_id,
+                bien_id=bien_id,
+                annee=annee,
+                defaults={'montant_attendu': montant}
+            )
+    except (ValueError, decimal.InvalidOperation):
+        return JsonResponse({'ok': False, 'error': 'Montant invalide'}, status=400)
+
+    return JsonResponse({'ok': True})
