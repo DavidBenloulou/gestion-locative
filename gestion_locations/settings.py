@@ -118,7 +118,7 @@ STATICFILES_DIRS = [
 ]
 
 # Dossier où les fichiers statiques seront collectés lors du déploiement
-STATIC_ROOT = '/home/Davidbenloulou/Gestion locative/gestion_locations/staticfiles'
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # Configuration de sécurité pour la production
 if IS_PYTHONANYWHERE:
