@@ -1,0 +1,166 @@
+{% extends "principale/base.html" %}
+
+{% block title %}{{ titre }} - Gestion Locative{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h1>{{ titre }}</h1>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="post">
+            {% csrf_token %}
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="{{ form.nom.id_for_label }}">Nom</label>
+                        {{ form.nom }}
+                        {% if form.nom.errors %}
+                            <div class="text-danger">
+                                {{ form.nom.errors }}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="{{ form.prenom.id_for_label }}">Prénom</label>
+                        {{ form.prenom }}
+                        {% if form.prenom.errors %}
+                            <div class="text-danger">
+                                {{ form.prenom.errors }}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="{{ form.date_naissance.id_for_label }}">Date de naissance</label>
+                        {{ form.date_naissance }}
+                        {% if form.date_naissance.errors %}
+                            <div class="text-danger">
+                                {{ form.date_naissance.errors }}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="{{ form.lieu_naissance.id_for_label }}">Lieu de naissance</label>
+                        {{ form.lieu_naissance }}
+                        {% if form.lieu_naissance.errors %}
+                            <div class="text-danger">
+                                {{ form.lieu_naissance.errors }}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="{{ form.telephone.id_for_label }}">Téléphone fixe</label>
+                        {{ form.telephone }}
+                        {% if form.telephone.errors %}
+                            <div class="text-danger">
+                                {{ form.telephone.errors }}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="{{ form.telephone_portable.id_for_label }}">Téléphone portable</label>
+                        {{ form.telephone_portable }}
+                        {% if form.telephone_portable.errors %}
+                            <div class="text-danger">
+                                {{ form.telephone_portable.errors }}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-12">
+                    <div class="form-group">
+                        <label for="{{ form.email.id_for_label }}">Email</label>
+                        {{ form.email }}
+                        {% if form.email.errors %}
+                            <div class="text-danger">
+                                {{ form.email.errors }}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Adresse postale -->
+            <div class="row mb-3">
+                <div class="col-md-12">
+                    <div class="form-group">
+                        <label for="{{ form.adresse.id_for_label }}">Adresse</label>
+                        {{ form.adresse }}
+                        {% if form.adresse.errors %}
+                            <div class="text-danger">
+                                {{ form.adresse.errors }}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label for="{{ form.code_postal.id_for_label }}">Code postal</label>
+                        {{ form.code_postal }}
+                        {% if form.code_postal.errors %}
+                            <div class="text-danger">
+                                {{ form.code_postal.errors }}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="col-md-8">
+                    <div class="form-group">
+                        <label for="{{ form.ville.id_for_label }}">Ville</label>
+                        {{ form.ville }}
+                        {% if form.ville.errors %}
+                            <div class="text-danger">
+                                {{ form.ville.errors }}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mt-4">
+                <div class="col-md-12">
+                    <div class="d-flex justify-content-between">
+                        {% if locataire %}
+                            <a href="{% url 'detail_locataire' locataire.id %}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left"></i> Retour
+                            </a>
+                        {% else %}
+                            <a href="{% url 'liste_locataires' %}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left"></i> Retour
+                            </a>
+                        {% endif %}
+                        
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Enregistrer
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

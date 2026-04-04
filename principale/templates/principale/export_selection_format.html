@@ -1,0 +1,61 @@
+{% extends "principale/base.html" %}
+{% block title %}{{ titre }} - Gestion Locative{% endblock %}
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h1>{{ titre }}</h1>
+</div>
+<div class="card">
+    <div class="card-header">
+        <h5>{% if excel_only %}Paramètres d'export{% else %}Choisir le format d'export{% endif %}</h5>
+    </div>
+    <div class="card-body">
+        {% if excel_only %}
+            <p>Configurez les paramètres puis cliquez sur Exporter :</p>
+        {% else %}
+            <p>Veuillez sélectionner le format d'export souhaité :</p>
+        {% endif %}
+        
+        <form method="get" action="{{ action_url }}">
+            {% if show_year_selector %}
+            <div class="form-group mb-4">
+                <label for="annee" class="font-weight-bold">
+                    <i class="fas fa-calendar-alt"></i> Année :
+                </label>
+                <select name="annee" id="annee" class="form-control">
+                    {% for annee in annees_disponibles %}
+                        <option value="{{ annee }}" {% if annee == annee_selectionnee %}selected{% endif %}>
+                            {{ annee }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+
+            {% if show_date_filter %}
+            <div class="form-group mb-4">
+                <label for="date_fin" class="font-weight-bold">
+                    <i class="fas fa-calendar-alt"></i> Créances jusqu'au :
+                </label>
+                <input type="date" name="date_fin" id="date_fin" class="form-control" value="{{ date_fin_defaut }}">
+                <small class="form-text text-muted">Laissez la date du jour pour afficher toutes les créances à ce jour, ou choisissez une date antérieure (ex: 31/12/2025).</small>
+            </div>
+            {% endif %}
+            
+            <div class="d-flex gap-3 mt-4">
+                {% if excel_only %}
+                    <button type="submit" name="format" value="excel" class="btn btn-success">
+                        <i class="fas fa-file-excel"></i> Exporter en Excel
+                    </button>
+                {% else %}
+                    <button type="submit" name="format" value="pdf" class="btn btn-primary">
+                        <i class="fas fa-file-pdf"></i> Format PDF
+                    </button>
+                    <button type="submit" name="format" value="excel" class="btn btn-success">
+                        <i class="fas fa-file-excel"></i> Format Excel
+                    </button>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

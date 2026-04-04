@@ -1,0 +1,205 @@
+{% extends 'principale/base_impression.html' %}
+
+{% block title %}Aperçu d'impression des créances{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Fonction pour générer le PDF avec les commentaires
+    function genererPDF() {
+        // Récupérer tous les commentaires saisis
+        let commentaires = {};
+        document.querySelectorAll('input.commentaire-input').forEach(input => {
+            const id = input.getAttribute('data-id');
+            const valeur = input.value;
+            if (valeur) {
+                commentaires[id] = valeur;
+            }
+        });
+        
+        // Convertir l'objet en chaîne pour l'URL
+        const commentairesJSON = encodeURIComponent(JSON.stringify(commentaires));
+        
+        // Rediriger vers la vue de génération PDF avec les commentaires
+        window.location.href = '{% url 'apercu_impression_creances' %}?generer_pdf=1&commentaires=' + commentairesJSON;
+        
+        return false; // Empêcher le comportement par défaut
+    }
+    
+    // Fonction pour exporter les créances (PDF ou Excel)
+    function exporterCreances() {
+        // Récupérer tous les commentaires saisis
+        let commentaires = {};
+        document.querySelectorAll('input.commentaire-input').forEach(input => {
+            const id = input.getAttribute('data-id');
+            const valeur = input.value;
+            if (valeur) {
+                commentaires[id] = valeur;
+            }
+        });
+        
+        // Convertir l'objet en chaîne JSON et le mettre dans le champ caché
+        document.getElementById('commentairesJSON').value = JSON.stringify(commentaires);
+        
+        // Soumettre le formulaire
+        document.getElementById('exportForm').submit();
+    }
+    
+    // Sauvegarder un commentaire dans le localStorage
+    function sauvegarderCommentaire(input) {
+        const id = input.getAttribute('data-id');
+        localStorage.setItem('commentaire_creance_' + id, input.value);
+    }
+    
+    // Charger les commentaires depuis le localStorage
+    document.addEventListener('DOMContentLoaded', function() {
+        // Restaurer les commentaires sauvegardés localement
+        document.querySelectorAll('input.commentaire-input').forEach(input => {
+            const id = input.getAttribute('data-id');
+            const savedValue = localStorage.getItem('commentaire_creance_' + id);
+            if (savedValue) {
+                input.value = savedValue;
+            }
+        });
+        
+        // Ajouter les événements pour sauvegarder les commentaires
+        document.querySelectorAll('input.commentaire-input').forEach(input => {
+            input.addEventListener('input', function() {
+                sauvegarderCommentaire(this);
+            });
+        });
+    });
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-3 mb-3">
+    <!-- Boutons invisibles à l'impression -->
+    <div class="d-print-none mb-3 d-flex justify-content-between">
+        <a href="{% url 'creances' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-2"></i> Retour
+        </a>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#exportModal">
+            <i class="fas fa-file-export me-2"></i> Exporter
+        </button>
+    </div>
+
+    <!-- Modal d'exportation -->
+    <div class="modal fade" id="exportModal" tabindex="-1" aria-labelledby="exportModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="exportModalLabel">Exporter les créances</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <form id="exportForm" action="{% url 'apercu_impression_creances' %}" method="get">
+              <input type="hidden" name="commentaires" id="commentairesJSON" value="">
+              <div class="mb-3">
+                <label class="form-label">Format d'export</label>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="format" id="formatPDF" value="pdf" checked>
+                  <label class="form-check-label" for="formatPDF">
+                    PDF
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="format" id="formatExcel" value="excel">
+                  <label class="form-check-label" for="formatExcel">
+                    Excel
+                  </label>
+                </div>
+              </div>
+              <input type="hidden" name="generer_pdf" value="1">
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+            <button type="button" class="btn btn-primary" onclick="exporterCreances()">Exporter</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Contenu de l'aperçu d'impression -->
+    <div class="row justify-content-center">
+        <div class="col-12">
+            <div class="text-center mb-4">
+                <h1 class="h3">État des créances - {{ current_sci.nom }}</h1>
+                <p class="text-muted small">Édité le {{ date_edition }}</p>
+            </div>
+
+            <table class="table table-bordered table-sm">
+                <thead class="table-light">
+                    <tr>
+                        <th>Locataire</th>
+                        <th>Bien</th>
+                        <th>Type</th>
+                        <th>Période</th>
+                        <th class="text-end">Montant attendu</th>
+                        <th class="text-end">Montant payé</th>
+                        <th>Commentaire</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for creance in liste_creances %}
+                    <tr>
+                        <td>{{ creance.locataire }}</td>
+                        <td>{{ creance.bien }}</td>
+                        <td class="text-center">{{ creance.type }}</td>
+                        <td class="text-center">{{ creance.periode }}</td>
+                        <td class="text-end">
+                            {% if creance.montant_attendu == 'À déterminer' %}
+                                {{ creance.montant_attendu }}
+                            {% else %}
+                                {{ creance.montant_attendu|floatformat:2 }} €
+                            {% endif %}
+                        </td>
+                        <td class="text-end">{{ creance.montant_paye|floatformat:2 }} €</td>
+                        <td>
+                            <input 
+                                type="text" 
+                                class="form-control form-control-sm commentaire-input" 
+                                data-id="{{ creance.id }}" 
+                                value="{{ creance.commentaire|default:'' }}" 
+                                placeholder="Ajouter un commentaire">
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    
+                    <!-- Ligne de total -->
+                    <tr class="table-secondary fw-bold">
+                        <td colspan="4" class="text-end">TOTAL</td>
+                        <td class="text-end">{{ total_attendu|floatformat:2 }} €</td>
+                        <td class="text-end">{{ total_paye|floatformat:2 }} €</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<style>
+    @media print {
+        @page {
+            size: A4 portrait;
+            margin: 1cm;
+        }
+        
+        body {
+            font-size: 12px;
+        }
+        
+        .table {
+            font-size: 10px;
+        }
+        
+        th, td {
+            padding: 4px 6px !important;
+        }
+        
+        .d-print-none {
+            display: none !important;
+        }
+    }
+</style>
+{% endblock %}

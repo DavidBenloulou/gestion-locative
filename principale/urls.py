@@ -1,0 +1,38 @@
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path('', views.dashboard, name='dashboard'),
+    path('biens/', views.liste_biens, name='liste_biens'),
+    path('biens/ajouter/', views.ajouter_bien, name='ajouter_bien'),
+    path('biens/<int:bien_id>/', views.detail_bien, name='detail_bien'),
+    path('biens/<int:bien_id>/modifier/', views.modifier_bien, name='modifier_bien'),
+    path('biens/<int:bien_id>/supprimer/', views.supprimer_bien, name='supprimer_bien'),
+    path('locataires/', views.liste_locataires, name='liste_locataires'),
+    path('locataires/ajouter/', views.ajouter_locataire, name='ajouter_locataire'),
+    path('locataires/<int:locataire_id>/', views.detail_locataire, name='detail_locataire'),
+    path('locataires/<int:locataire_id>/modifier/', views.modifier_locataire, name='modifier_locataire'),
+    path('locataires/<int:locataire_id>/supprimer/', views.supprimer_locataire, name='supprimer_locataire'),
+    path('transactions/', views.liste_transactions, name='liste_transactions'),
+    path('transactions/ajouter/', views.ajouter_transaction, name='ajouter_transaction'),
+    path('transactions/<int:transaction_id>/', views.detail_transaction, name='detail_transaction'),
+    path('transactions/<int:transaction_id>/modifier/', views.modifier_transaction, name='modifier_transaction'),
+    path('transactions/<int:transaction_id>/supprimer/', views.supprimer_transaction, name='supprimer_transaction'),
+    path('etat-paiements/', views.etat_paiements, name='etat_paiements'),
+    path('bilan-comptable-detaille/', views.bilan_comptable_detaille, name='bilan_comptable_detaille'),
+    path('exporter-bilan-detaille-pdf/', views.exporter_bilan_detaille_pdf, name='exporter_bilan_detaille_pdf'),
+    path('creances/', views.creances, name='creances'),
+    path('creances/impression/', views.apercu_impression_creances, name='apercu_impression_creances'),
+    path('sci/changer/', views.changer_sci, name='changer_sci'),
+    path('locataires/<int:locataire_id>/quittance/', views.generer_quittance, name='generer_quittance'),
+    path('locataires/<int:locataire_id>/ajouter-location/', views.ajouter_location_bien, name='ajouter_location_bien'),
+    path('locations/<int:location_id>/modifier/', views.modifier_location_bien, name='modifier_location_bien'),
+    path('locations/<int:location_id>/supprimer/', views.supprimer_location_bien, name='supprimer_location_bien'),
+    path('get_biens_locataire/<int:locataire_id>/', views.get_biens_locataire, name='get_biens_locataire'),
+    path('transactions/export/', views.exporter_transactions, name='exporter_transactions'),
+    path('export-mouvements-locataires/', views.export_mouvements_locataires, name='export_mouvements_locataires'),
+    path('export-etat-cautions/', views.export_etat_cautions, name='export_etat_cautions'),
+    path('historique-frais-bien/', views.historique_frais_bien, name='historique_frais_bien'),
+    path('ordures-menageres/', views.gestion_om, name='gestion_om'),
+
+]

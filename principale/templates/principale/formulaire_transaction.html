@@ -1,0 +1,410 @@
+{% extends "principale/base.html" %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h1>{{ titre }}</h1>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="post">
+            {% csrf_token %}
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.type_transaction.id_for_label }}" class="form-label">Type de transaction</label>
+                    {{ form.type_transaction }}
+                    {% if form.type_transaction.errors %}
+                        <div class="text-danger">{{ form.type_transaction.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.montant.id_for_label }}" class="form-label">Montant (€)</label>
+                    {{ form.montant }}
+                    {% if form.montant.errors %}
+                        <div class="text-danger">{{ form.montant.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Date et mois concerné -->
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.date.id_for_label }}" class="form-label">Date de la transaction</label>
+                    {{ form.date }}
+                    {% if form.date.errors %}
+                        <div class="text-danger">{{ form.date.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="col-md-6 mb-3" id="mois_concerne_div">
+                    <label for="{{ form.mois_concerne.id_for_label }}" class="form-label">Mois concerné</label>
+                    {{ form.mois_concerne }}
+                    <div class="form-text text-muted">Mois et année auxquels se rapporte cette transaction (ex: loyer de mars payé en avril)</div>
+                    {% if form.mois_concerne.errors %}
+                        <div class="text-danger">{{ form.mois_concerne.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="col-md-6 mb-3" id="annee_concernee_div" style="display:none;">
+                    <label for="{{ form.annee_concernee.id_for_label }}" class="form-label">Année concernée</label>
+                    {{ form.annee_concernee }}
+                    <div class="form-text text-muted">Année à laquelle se rapporte le paiement des ordures ménagères</div>
+                    {% if form.annee_concernee.errors %}
+                        <div class="text-danger">{{ form.annee_concernee.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Locataire et SCI -->
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.locataire.id_for_label }}" class="form-label">Locataire</label>
+                    {{ form.locataire }}
+                    <div class="form-text text-muted">Le bien associé au locataire sera automatiquement lié à la transaction</div>
+                    {% if form.locataire.errors %}
+                        <div class="text-danger">{{ form.locataire.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="col-md-6 mb-3 pt-4">
+                    <div class="form-check">
+                        {{ form.sci_transaction }}
+                        <label class="form-check-label" for="{{ form.sci_transaction.id_for_label }}">
+                            Transaction liée à la SCI (propriétaire)
+                        </label>
+                    </div>
+                    <div class="form-text text-muted">Si cochée, aucun locataire ne peut être sélectionné</div>
+                    {% if form.sci_transaction.errors %}
+                        <div class="text-danger">{{ form.sci_transaction.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Nouveau champ pour le bien spécifique -->
+            <div class="row">
+                <div class="col-md-6 mb-3" id="bien_specifique_div" style="display:none;">
+                    <label for="{{ form.bien_specifique.id_for_label }}" class="form-label">Bien concerné</label>
+                    {{ form.bien_specifique }}
+                    {% if form.bien_specifique.errors %}
+                        <div class="text-danger">{{ form.bien_specifique.errors }}</div>
+                    {% endif %}
+                    <div class="form-text text-muted">Sélectionnez le bien associé à cette transaction</div>
+                </div>
+
+                <!-- Nouveau champ pour le bien des travaux -->
+                <div class="col-md-6 mb-3" id="bien_div" style="display:none;">
+                    <label for="{{ form.bien.id_for_label }}" class="form-label">Bien concerné par les travaux</label>
+                    {{ form.bien }}
+                    {% if form.bien.errors %}
+                        <div class="text-danger">{{ form.bien.errors }}</div>
+                    {% endif %}
+                    <div class="form-text text-muted">Sélectionnez le bien concerné par ces travaux (optionnel)</div>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label for="{{ form.description.id_for_label }}" class="form-label">Description</label>
+                {{ form.description }}
+                {% if form.description.errors %}
+                    <div class="text-danger">{{ form.description.errors }}</div>
+                {% endif %}
+            </div>
+            <input type="hidden" name="sci_submitted" value="1">
+
+            <div class="d-flex justify-content-between mt-4">
+                <a href="javascript:history.back()" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Retour
+                </a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save"></i> Enregistrer
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var typeTransactionSelect = document.querySelector('select[name="type_transaction"]');
+    var moisConcerneDiv = document.getElementById('mois_concerne_div');
+    var anneeConcerneeDiv = document.getElementById('annee_concernee_div');
+    var anneeConcerneeSelect = document.querySelector('select[name="annee_concernee"]');
+    var sciTransactionCheckbox = document.getElementById('id_sci_transaction');
+    var locataireSelect = document.querySelector('select[name="locataire"]');
+    var locataireDiv = locataireSelect.closest('.col-md-6');
+    var dateInput = document.querySelector('input[name="date"]');
+    var moisConcerneInput = document.querySelector('input[name="mois_concerne"]');
+    var bienSpecifiqueDiv = document.getElementById('bien_specifique_div');
+    var bienSpecifiqueSelect = document.querySelector('select[name="bien_specifique"]');
+    var bienDiv = document.getElementById('bien_div');
+    var bienSelect = document.querySelector('select[name="bien"]');
+
+    // Liste des types de transactions pour lesquels on veut présélectionner "liée à la SCI"
+    var typesPreselectionSci = [
+        'dépense - assurance',
+        'dépense - autres dépenses',
+        'dépense - comptable',
+        'dépense - echéance pret',
+        'dépense - frais',
+        'dépense - impots',
+        'dépense - pour locataires',
+        'dépense - rbt cc',
+        'dépense - travaux',
+        'recette - apport cc',
+        'recette - divers recettes'
+    ];
+
+    // Fonction pour vérifier si le type sélectionné doit présélectionner la case SCI
+    function shouldPreselectSci(transactionText) {
+        if (!transactionText) return false;
+        var lowerCaseText = transactionText.toLowerCase();
+        return typesPreselectionSci.some(type => lowerCaseText === type);
+    }
+
+    // Fonction pour extraire l'année depuis le champ date
+    function getYearFromDateInput() {
+        if (dateInput && dateInput.value) {
+            var parts = dateInput.value.split('-');
+            if (parts.length >= 1) {
+                return parts[0];
+            }
+        }
+        return new Date().getFullYear().toString();
+    }
+
+    // Fonction pour gérer automatiquement la présélection de la case SCI
+    function handleTransactionTypeChange() {
+        if (!typeTransactionSelect) return;
+
+        var selectedOption = typeTransactionSelect.options[typeTransactionSelect.selectedIndex];
+        var transactionText = selectedOption ? selectedOption.text.toLowerCase() : '';
+
+        var shouldPreselect = shouldPreselectSci(transactionText);
+
+        if (shouldPreselect) {
+            sciTransactionCheckbox.checked = true;
+        }
+
+        var isTravauxType = transactionText.includes('travaux');
+        if (isTravauxType && bienDiv) {
+            bienDiv.style.display = 'block';
+        }
+
+        updateMoisVisibility();
+        updateLocataireVisibility();
+        updateBienFields();
+    }
+
+    // Fonction pour gérer l'affichage des champs de bien selon le type de transaction
+    function updateBienFields() {
+        if (!typeTransactionSelect) return;
+
+        var selectedOption = typeTransactionSelect.options[typeTransactionSelect.selectedIndex];
+        var transactionText = selectedOption ? selectedOption.text.toLowerCase() : '';
+        var isSciChecked = sciTransactionCheckbox.checked;
+        var isTravauxType = transactionText.includes('travaux');
+
+        if (bienDiv) bienDiv.style.display = 'none';
+        if (bienSpecifiqueDiv) bienSpecifiqueDiv.style.display = 'none';
+
+        if (isSciChecked) {
+            if (isTravauxType && bienDiv) {
+                bienDiv.style.display = 'block';
+            }
+            return;
+        }
+
+        if (isTravauxType) {
+            if (bienDiv) bienDiv.style.display = 'block';
+        } else if (locataireSelect.value) {
+            updateBienSpecifiqueVisibility();
+        }
+    }
+
+    function updateBienSpecifiqueVisibility() {
+        if (locataireSelect && bienSpecifiqueDiv && bienSpecifiqueSelect) {
+            var selectedLocataireId = locataireSelect.value;
+            var isSciChecked = sciTransactionCheckbox.checked;
+
+            if (selectedLocataireId && !isSciChecked) {
+                fetch(`/get_biens_locataire/${selectedLocataireId}/`)
+                    .then(response => response.json())
+                    .then(data => {
+                        bienSpecifiqueSelect.innerHTML = '<option value="">---------</option>';
+
+                        data.biens.forEach(bien => {
+                            var typeBien = bien.type_bien || 'Bien';
+                            var numero = bien.numero ? bien.numero + ' - ' : '';
+                            var option = new Option(`${typeBien} - ${numero}${bien.adresse}`, bien.id);
+                            bienSpecifiqueSelect.add(option);
+                        });
+
+                        var selectedOption = typeTransactionSelect.options[typeTransactionSelect.selectedIndex];
+                        var transactionText = selectedOption ? selectedOption.text.toLowerCase() : '';
+                        var isTravauxType = transactionText.includes('travaux');
+
+                        bienSpecifiqueDiv.style.display = isTravauxType ? 'none' : 'block';
+
+                        if (data.biens.length === 1) {
+                            bienSpecifiqueSelect.selectedIndex = 1;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Erreur:', error);
+                    });
+            } else {
+                bienSpecifiqueDiv.style.display = 'none';
+            }
+        }
+    }
+
+    // Fonction pour gérer la visibilité du champ mois_concerne et annee_concernee
+    function updateMoisVisibility() {
+        if (!typeTransactionSelect) return;
+
+        var selectedOption = typeTransactionSelect.options[typeTransactionSelect.selectedIndex];
+        var transactionText = selectedOption.text.toLowerCase();
+
+        var isRelevantType = transactionText.includes('loyer') ||
+                            transactionText.includes('caf') ||
+                            transactionText.includes('retard') ||
+                            transactionText.includes('charge');
+
+        var isOMType = transactionText.includes('om') ||
+                       transactionText.includes('ordures');
+
+        // Cacher les deux par défaut
+        moisConcerneDiv.style.display = 'none';
+        anneeConcerneeDiv.style.display = 'none';
+
+        if (isOMType) {
+            // Afficher le sélecteur d'année pour les OM
+            anneeConcerneeDiv.style.display = 'block';
+
+            // Pré-sélectionner l'année de la date de paiement si pas déjà sélectionnée
+            if (anneeConcerneeSelect && (!anneeConcerneeSelect.value || anneeConcerneeSelect.value === '')) {
+                var yearFromDate = getYearFromDateInput();
+                // Chercher l'option correspondante
+                for (var i = 0; i < anneeConcerneeSelect.options.length; i++) {
+                    if (anneeConcerneeSelect.options[i].value === yearFromDate) {
+                        anneeConcerneeSelect.selectedIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            // Vider le mois concerné
+            if (moisConcerneInput) {
+                moisConcerneInput.value = '';
+            }
+        } else if (isRelevantType) {
+            // Afficher le mois concerné pour loyer/caf/retard/charge
+            moisConcerneDiv.style.display = 'block';
+
+            if (moisConcerneInput && dateInput && (!moisConcerneInput.value || moisConcerneInput.value === '')) {
+                moisConcerneInput.value = dateInput.value;
+            }
+        } else {
+            // Ni l'un ni l'autre
+            if (moisConcerneInput) {
+                moisConcerneInput.value = '';
+            }
+        }
+    }
+
+    // Fonction pour gérer l'interaction entre sci et locataire
+    function updateLocataireVisibility() {
+        if (!sciTransactionCheckbox || !locataireSelect) return;
+
+        var isSciChecked = sciTransactionCheckbox.checked;
+
+        if (isSciChecked) {
+            locataireSelect.disabled = true;
+            locataireSelect.value = '';
+            locataireSelect.required = false;
+            locataireDiv.style.opacity = '0.5';
+
+            if (bienSpecifiqueDiv) {
+                bienSpecifiqueDiv.style.display = 'none';
+            }
+
+            var label = locataireDiv.querySelector('label');
+            if (label) {
+                label.innerHTML = label.innerHTML.replace(' *', '');
+            }
+        } else {
+            locataireSelect.disabled = false;
+            locataireSelect.required = true;
+            locataireDiv.style.opacity = '1';
+
+            var label = locataireDiv.querySelector('label');
+            if (label && !label.innerHTML.includes('*')) {
+                label.innerHTML += ' *';
+            }
+        }
+        updateBienFields();
+    }
+
+    // Initialisation et écouteurs d'événements
+    updateMoisVisibility();
+    updateLocataireVisibility();
+    updateBienFields();
+    handleTransactionTypeChange();
+
+    // Écouteurs d'événements
+    if (typeTransactionSelect) {
+        typeTransactionSelect.addEventListener('change', function() {
+            handleTransactionTypeChange();
+        });
+    }
+
+    if (sciTransactionCheckbox) {
+        sciTransactionCheckbox.addEventListener('change', function() {
+            updateLocataireVisibility();
+            updateBienFields();
+        });
+    }
+
+    if (locataireSelect) {
+        locataireSelect.addEventListener('change', function() {
+            updateBienSpecifiqueVisibility();
+            updateBienFields();
+        });
+    }
+
+    // Quand la date change, mettre à jour le mois concerné OU l'année concernée
+    if (dateInput) {
+        dateInput.addEventListener('change', function() {
+            if (typeTransactionSelect) {
+                var selectedOption = typeTransactionSelect.options[typeTransactionSelect.selectedIndex];
+                var transactionText = selectedOption.text.toLowerCase();
+
+                var isRelevantType = transactionText.includes('loyer') ||
+                                     transactionText.includes('caf') ||
+                                     transactionText.includes('retard') ||
+                                     transactionText.includes('charge');
+
+                var isOMType = transactionText.includes('om') ||
+                               transactionText.includes('ordures');
+
+                if (isRelevantType && moisConcerneInput) {
+                    moisConcerneInput.value = dateInput.value;
+                }
+
+                if (isOMType && anneeConcerneeSelect) {
+                    var yearFromDate = getYearFromDateInput();
+                    for (var i = 0; i < anneeConcerneeSelect.options.length; i++) {
+                        if (anneeConcerneeSelect.options[i].value === yearFromDate) {
+                            anneeConcerneeSelect.selectedIndex = i;
+                            break;
+                        }
+                    }
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock content %}

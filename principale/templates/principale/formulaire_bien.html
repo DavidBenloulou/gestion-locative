@@ -1,0 +1,87 @@
+{% extends "principale/base.html" %}
+{% block title %}{{ titre }} - Gestion Locative{% endblock %}
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h1>{{ titre }}</h1>
+</div>
+<div class="card">
+    <div class="card-body">
+        <form method="post">
+            {% csrf_token %}
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="id_type_bien" class="form-label">Type de bien</label>
+                    {{ form.type_bien }}
+                    {% if form.type_bien.errors %}
+                        <div class="text-danger">{{ form.type_bien.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="id_adresse" class="form-label">Adresse</label>
+                    {{ form.adresse }}
+                    {% if form.adresse.errors %}
+                        <div class="text-danger">{{ form.adresse.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="col-md-3">
+                    <label for="id_code_postal" class="form-label">Code postal</label>
+                    {{ form.code_postal }}
+                    {% if form.code_postal.errors %}
+                        <div class="text-danger">{{ form.code_postal.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="col-md-3">
+                    <label for="id_ville" class="form-label">Ville</label>
+                    {{ form.ville }}
+                    {% if form.ville.errors %}
+                        <div class="text-danger">{{ form.ville.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="id_loyer_mensuel" class="form-label">Loyer hors charges (€)</label>
+                    {{ form.loyer_mensuel }}
+                    {% if form.loyer_mensuel.errors %}
+                        <div class="text-danger">{{ form.loyer_mensuel.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="col-md-6">
+                    <label for="id_montant_charges" class="form-label">Montant des charges (€)</label>
+                    {{ form.montant_charges }}
+                    {% if form.montant_charges.errors %}
+                        <div class="text-danger">{{ form.montant_charges.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="col-md-6">
+                    <label for="id_montant_caution" class="form-label">Montant de la caution (€)</label>
+                    {{ form.montant_caution }}
+                    {% if form.montant_caution.errors %}
+                        <div class="text-danger">{{ form.montant_caution.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="id_numero" class="form-label">Numéro</label>
+                    {{ form.numero }}
+                    <div class="form-text text-muted">Numéro d'appartement, de lot, etc. (optionnel)</div>
+                    {% if form.numero.errors %}
+                        <div class="text-danger">{{ form.numero.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="d-flex justify-content-between mt-4">
+                <a href="{% url 'liste_biens' %}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Retour
+                </a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save"></i> Enregistrer
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

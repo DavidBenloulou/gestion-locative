@@ -1,0 +1,97 @@
+{% extends "principale/base.html" %}
+
+{% block title %}Détail de la transaction - Gestion Locative{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h1>Détail de la transaction</h1>
+    <div>
+        <a href="{% url 'modifier_transaction' transaction.id %}" class="btn btn-primary">
+            <i class="fas fa-edit"></i> Modifier
+        </a>
+        <a href="{% url 'supprimer_transaction' transaction.id %}" class="btn btn-danger">
+            <i class="fas fa-trash"></i> Supprimer
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5>Informations générales</h5>
+    </div>
+    <div class="card-body">
+        <table class="table">
+            <tr>
+                <th style="width: 30%;">Date de la transaction :</th>
+                <td>{{ transaction.date }}</td>
+            </tr>
+            <tr>
+                <th>Mois concerné :</th>
+                <td>{{ transaction.mois_concerne|date:"F Y" }}</td>
+            </tr>
+            <tr>
+                <th>Type de transaction :</th>
+                <td>
+                    {% if transaction.type_transaction.categorie == 'RECETTE' %}
+                        <span class="text-success">{{ transaction.type_transaction }}</span>
+                    {% else %}
+                        <span class="text-danger">{{ transaction.type_transaction }}</span>
+                    {% endif %}
+                </td>
+            </tr>
+            <tr>
+                <th>Montant :</th>
+                <td>
+                    {% if transaction.type_transaction.categorie == 'RECETTE' %}
+                        <span class="text-success">+{{ transaction.montant }} €</span>
+                    {% else %}
+                        <span class="text-danger">-{{ transaction.montant }} €</span>
+                    {% endif %}
+                </td>
+            </tr>
+            <tr>
+                <th>Transaction SCI :</th>
+                <td>
+                    {% if transaction.sci and not transaction.locataire %}
+                        <span class="badge bg-success">Oui</span>
+                    {% else %}
+                        <span class="badge bg-secondary">Non</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% if transaction.bien %}
+            <tr>
+                <th>Bien concerné :</th>
+                <td>
+                    <a href="{% url 'detail_bien' transaction.bien.id %}">
+                        {{ transaction.bien.get_type_bien_display }} - {{ transaction.bien.adresse }}, {{ transaction.bien.ville }}
+                    </a>
+                </td>
+            </tr>
+            {% endif %}
+            {% if transaction.locataire %}
+            <tr>
+                <th>Locataire concerné :</th>
+                <td>
+                    <a href="{% url 'detail_locataire' transaction.locataire.id %}">
+                        {{ transaction.locataire.nom }} {{ transaction.locataire.prenom }}
+                    </a>
+                </td>
+            </tr>
+            {% endif %}
+            {% if transaction.description %}
+            <tr>
+                <th>Description :</th>
+                <td>{{ transaction.description }}</td>
+            </tr>
+            {% endif %}
+        </table>
+    </div>
+</div>
+
+<div class="mt-4">
+    <a href="{% url 'liste_transactions' %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> Retour à la liste des transactions
+    </a>
+</div>
+{% endblock %}

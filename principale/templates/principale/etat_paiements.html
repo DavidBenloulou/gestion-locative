@@ -1,0 +1,141 @@
+{% extends "principale/base.html" %}
+
+{% block title %}État des paiements - Gestion Locative{% endblock %}
+
+{% block content %}
+{% load static %}
+
+<style>
+    .locataire-cell {
+        vertical-align: middle !important;
+        text-align: center;
+    }
+</style>
+
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h1>État des paiements - {{ current_sci.nom }}</h1>
+    <div>
+        <span class="badge" style="background-color: var(--primary-color); color: white;">Mois en cours : {{ mois_courant }}</span>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header" style="background-color: var(--primary-color); color: white;">
+        <h5 class="mb-0">Tableau récapitulatif des paiements</h5>
+    </div>
+    <div class="card-body">
+        {% if tableau_paiements %}
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>Locataire</th>
+                            <th>Bien</th>
+                            <th>Loyer mensuel</th>
+                            <th>Loyer (mois en cours)</th>
+                            <th>Loyer (3 derniers mois)</th>
+                            <th>Charges (mois en cours)</th>
+                            <th>Charges (3 derniers mois)</th>
+                            <th>Dépôt de garantie</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for paiement in tableau_paiements %}
+                        <tr>
+                            {% if paiement.est_premier_bien %}
+                            <td class="locataire-cell" rowspan="{{ paiement.rowspan }}">
+                                <a href="{% url 'detail_locataire' paiement.locataire.id %}">
+                                    {{ paiement.locataire.nom }} {{ paiement.locataire.prenom }}
+                                </a>
+                            </td>
+                            {% endif %}
+                            <td>
+                                <a href="{% url 'detail_bien' paiement.bien.id %}">
+                                    {% if paiement.bien.numero %}{{ paiement.bien.numero_formate }} - {% endif %}{{ paiement.bien.adresse }}
+                                </a>
+                            </td>
+                            <td>
+                                {{ paiement.loyer_mensuel }} €
+                                {% if paiement.montant_charges %}
+                                    <br> <small class="text-muted">+ {{ paiement.montant_charges }} € charges</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if paiement.loyer == "OK" %}
+                                    <span class="badge" style="background-color: var(--success-color);">OK</span>
+                                {% elif paiement.loyer == "Partiel" %}
+                                    <span class="badge" style="background-color: var(--warning-color);">Partiel</span>
+                                {% elif paiement.loyer == "N/A (arrivée récente)" %}
+                                    <span class="badge" style="background-color: var(--neutral-medium);">N/A</span>
+                                {% else %}
+                                    <span class="badge" style="background-color: var(--danger-color);">En attente</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% for mois in paiement.mois_precedents %}
+                                    <span class="d-inline-block me-2">
+                                        {{ mois.nom }}:
+                                        {% if mois.loyer_status == "OK" %}
+                                            <span class="badge" style="background-color: var(--success-color);">OK</span>
+                                        {% elif mois.loyer_status == "Partiel" %}
+                                            <span class="badge" style="background-color: var(--warning-color);">Partiel</span>
+                                        {% elif mois.loyer_status == "N/A" %}
+                                            <span class="badge" style="background-color: var(--neutral-medium);">N/A</span>
+                                        {% else %}
+                                            <span class="badge" style="background-color: var(--danger-color);">Non</span>
+                                        {% endif %}
+                                    </span>
+                                    {% if not forloop.last %}<br>{% endif %}
+                                {% endfor %}
+                            </td>
+                            <td>
+                                {% if paiement.charges == "OK" %}
+                                    <span class="badge" style="background-color: var(--success-color);">OK</span>
+                                {% elif paiement.charges == "Partiel" %}
+                                    <span class="badge" style="background-color: var(--warning-color);">Partiel</span>
+                                {% elif paiement.charges == "N/A" %}
+                                    <span class="badge" style="background-color: var(--neutral-medium);">N/A</span>
+                                {% else %}
+                                    <span class="badge" style="background-color: var(--danger-color);">En attente</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% for mois in paiement.mois_precedents %}
+                                    <span class="d-inline-block me-2">
+                                        {{ mois.nom }}:
+                                        {% if mois.charges_status == "OK" %}
+                                            <span class="badge" style="background-color: var(--success-color);">OK</span>
+                                        {% elif mois.charges_status == "Partiel" %}
+                                            <span class="badge" style="background-color: var(--warning-color);">Partiel</span>
+                                        {% elif mois.charges_status == "N/A" %}
+                                            <span class="badge" style="background-color: var(--neutral-medium);">N/A</span>
+                                        {% else %}
+                                            <span class="badge" style="background-color: var(--danger-color);">Non</span>
+                                        {% endif %}
+                                    </span>
+                                    {% if not forloop.last %}<br>{% endif %}
+                                {% endfor %}
+                            </td>
+                            <td>
+                                {% if paiement.depot_garantie == "OK" %}
+                                    <span class="badge" style="background-color: var(--success-color);">OK</span>
+                                {% elif paiement.depot_garantie == "Partiel" %}
+                                    <span class="badge" style="background-color: var(--warning-color);">Partiel</span>
+                                {% else %}
+                                    <span class="badge" style="background-color: var(--danger-color);">Manquant</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> Aucun locataire actif trouvé.
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}

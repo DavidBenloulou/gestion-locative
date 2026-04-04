@@ -1,0 +1,111 @@
+{% extends "principale/base.html" %}
+{% block title %}Tableau de bord - Gestion Locative{% endblock %}
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h1>Tableau de bord {% if current_sci %}- {{ current_sci.nom }}{% endif %}</h1>
+</div>
+<!-- Statistiques générales -->
+<div class="row">
+    <div class="col-md-3">
+        <div class="card card-recap card-biens">
+            <div class="card-body text-center">
+                <i class="fas fa-building card-icon"></i>
+                <h5 class="card-title">Biens immobiliers</h5>
+                <h2 class="card-value">{{ total_biens }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-recap card-locataires">
+            <div class="card-body text-center">
+                <i class="fas fa-users card-icon"></i>
+                <h5 class="card-title">Locataires actifs</h5>
+                <h2 class="card-value">{{ total_locataires }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-recap card-recettes">
+            <div class="card-body text-center">
+                <i class="fas fa-arrow-up card-icon"></i>
+                <h5 class="card-title">Recettes annuelles</h5>
+                <h2 class="card-value">{{ recettes_annuelles|floatformat:2 }} €</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-recap card-depenses">
+            <div class="card-body text-center">
+                <i class="fas fa-arrow-down card-icon"></i>
+                <h5 class="card-title">Dépenses annuelles</h5>
+                <h2 class="card-value">{{ depenses_annuelles|floatformat:2 }} €</h2>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Bilan financier -->
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Bilan financier de l'année</h5>
+            </div>
+            <div class="card-body text-center">
+                <h3 class="{% if bilan >= 0 %}text-success{% else %}text-danger{% endif %}">
+                    {{ bilan|floatformat:2 }} €
+                </h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Exports pour le comptable -->
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Exports pour le comptable</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex flex-wrap justify-content-between gap-2">
+                    <a href="{% url 'liste_transactions' %}?export=1" class="btn btn-outline-primary mb-2">
+                        <i class="fas fa-file-export"></i> Export des transactions
+                    </a>
+                    <a href="{% url 'apercu_impression_creances' %}" class="btn btn-outline-danger mb-2">
+                        <i class="fas fa-file-invoice-dollar"></i> Export des créances
+                    </a>
+                    <a href="{% url 'export_mouvements_locataires' %}" class="btn btn-outline-success mb-2">
+                        <i class="fas fa-users-cog"></i> Mouvements locataires
+                    </a>
+                    <a href="{% url 'export_etat_cautions' %}" class="btn btn-outline-info mb-2">
+                        <i class="fas fa-money-check-alt"></i> État des cautions
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Liens rapides -->
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Accès rapides</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <a href="{% url 'liste_biens' %}" class="btn btn-outline-primary">
+                        <i class="fas fa-building"></i> Voir tous les biens
+                    </a>
+                    <a href="{% url 'liste_locataires' %}" class="btn btn-outline-success">
+                        <i class="fas fa-users"></i> Voir tous les locataires
+                    </a>
+                    <a href="{% url 'liste_transactions' %}" class="btn btn-outline-info">
+                        <i class="fas fa-exchange-alt"></i> Voir toutes les transactions
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

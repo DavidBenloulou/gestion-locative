@@ -1,0 +1,100 @@
+{% extends "principale/base.html" %}
+{% load humanize %}
+
+{% block title %}Gestion des Ordures Ménagères - Gestion Locative{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h1>Ordures Ménagères - {{ annee_selectionnee }}</h1>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5>Montants attendus et paiements</h5>
+        <form method="get" class="d-flex align-items-center gap-2">
+            <label for="annee" class="form-label mb-0 me-2">Année :</label>
+            <select name="annee" id="annee" class="form-select" style="width: auto;" onchange="this.form.submit()">
+                {% for annee in annees_disponibles %}
+                    <option value="{{ annee }}" {% if annee == annee_selectionnee %}selected{% endif %}>
+                        {{ annee }}
+                    </option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+    <div class="card-body">
+        <form method="post">
+            {% csrf_token %}
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Locataire</th>
+                            <th>Bien</th>
+                            <th style="width: 150px;">Montant attendu (€)</th>
+                            <th>Montant payé</th>
+                            <th>Reste à payer</th>
+                            <th>Statut</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in tableau_om %}
+                        <tr>
+                            <td>{{ item.locataire.nom }} {{ item.locataire.prenom }}</td>
+                            <td>
+                                {% if item.bien.numero %}{{ item.bien.numero_formate }} - {% endif %}{{ item.bien.adresse }}
+                            </td>
+                            <td>
+                                <input type="text"
+                                       name="{{ item.field_name }}"
+                                       class="form-control form-control-sm text-end"
+                                       value="{% if item.montant_attendu %}{{ item.montant_attendu }}{% endif %}"
+                                       placeholder="0.00"
+                                       style="width: 120px;">
+                            </td>
+                            <td class="text-end">{{ item.montant_paye|floatformat:2 }} €</td>
+                            <td class="text-end">
+                                {% if item.reste_a_payer != None %}
+                                    {% if item.reste_a_payer == 0 %}
+                                        <span class="text-success">0,00 €</span>
+                                    {% else %}
+                                        <span class="text-danger">
+                                            {{ item.reste_a_payer|floatformat:2 }} €
+                                        </span>
+                                    {% endif %}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if item.statut == "OK" %}
+                                    <span class="badge bg-success">OK</span>
+                                {% elif item.statut == "Partiel" %}
+                                    <span class="badge bg-warning text-dark">Partiel</span>
+                                {% elif item.statut == "Non payé" %}
+                                    <span class="badge bg-danger">Non payé</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Non défini</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted">Aucun locataire actif trouvé.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if tableau_om %}
+            <div class="d-flex justify-content-end mt-3">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save"></i> Enregistrer les montants
+                </button>
+            </div>
+            {% endif %}
+        </form>
+    </div>
+</div>
+{% endblock %}

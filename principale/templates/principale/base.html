@@ -1,0 +1,236 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Gestion Locative{% endblock %}{% if current_sci %} - {{ current_sci.nom }}{% endif %}</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome pour les icônes -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts pour Futura (Montserrat est proche de Futura) -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap">
+    <!-- Votre CSS personnalisé -->
+    <link rel="stylesheet" href="{% static 'principale/css/style.css' %}">
+    <style>
+        /* Force l'échelle globale de la page - sera remplacé par le CSS mais utile en cas de problème */
+        html {
+            font-size: 13px;
+        }
+        .btn {
+            padding: 0.3rem 0.6rem;
+            font-size: 0.9rem;
+        }
+        .table td, .table th {
+            padding: 0.45rem;
+        }
+        /* Style pour le sélecteur de SCI en haut */
+        .sci-selector {
+            margin-bottom: 1rem;
+        }
+        .sci-selector .dropdown-toggle::after {
+            display: none; /* Supprime le triangle par défaut de Bootstrap */
+        }
+        /* Style pour les modals - correctifs */
+        .modal-backdrop {
+            z-index: 1040;
+        }
+        .modal {
+            z-index: 1050;
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Mobile Nav Toggle Button -->
+    <button class="mobile-nav-toggle d-md-none" id="sidebarToggle">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <!-- Mobile Navigation Header -->
+    <div class="mobile-nav d-md-none">
+        <h5>{{ current_sci.nom }}</h5>
+    </div>
+
+    <!-- Sidebar Overlay (pour fermer le menu sur mobile) -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- Sidebar -->
+    <div class="sidebar d-none d-md-block" id="sidebar">
+        <div class="py-3 px-3">
+            <!-- Titre avec sélecteur de SCI intégré -->
+            <div class="text-center mb-3">
+                <h5 class="mb-2">Gestion Locative</h5>
+
+                <!-- Remplacez le code actuel du sélecteur de SCI par celui-ci -->
+                <div class="sci-selector">
+                    <div class="dropdown w-100">
+                        <button class="btn dropdown-toggle d-flex justify-content-between align-items-center w-100"
+                                type="button"
+                                data-bs-toggle="dropdown"
+                                aria-expanded="false"
+                                style="background-color: var(--primary-light); color: white; border: none; font-size: 0.9rem;">
+                            <span class="text-truncate pe-2 sci-name">
+                                {% if current_sci %}{{ current_sci.nom }}{% else %}Sélectionner une SCI{% endif %}
+                            </span>
+                            <i class="fas fa-caret-down"></i>
+                        </button>
+                        <ul class="dropdown-menu w-100" style="font-size: 0.9rem;">
+                            <li><h6 class="dropdown-header">Changer de SCI</h6></li>
+                            {% for sci in scis_list %}
+                            <li>
+                                <form action="{% url 'changer_sci' %}" method="POST" class="m-0">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="sci_id" value="{{ sci.id }}">
+                                    <input type="hidden" name="next" value="{{ request.path }}">
+                                    <button type="submit" class="dropdown-item {% if current_sci.id == sci.id %}active{% endif %}">
+                                        {% if current_sci.id == sci.id %}<i class="fas fa-check me-1"></i>{% endif %}
+                                        {{ sci.nom }}
+                                    </button>
+                                </form>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a href="{% url 'dashboard' %}" class="nav-link {% if request.path == '/' %}active{% endif %}">
+                        <i class="fas fa-tachometer-alt"></i> Tableau de bord
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{% url 'liste_biens' %}" class="nav-link {% if 'biens' in request.path %}active{% endif %}">
+                        <i class="fas fa-building"></i> Biens immobiliers
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{% url 'liste_locataires' %}" class="nav-link {% if 'locataires' in request.path %}active{% endif %}">
+                        <i class="fas fa-users"></i> Locataires
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{% url 'liste_transactions' %}" class="nav-link {% if 'transactions' in request.path %}active{% endif %}">
+                        <i class="fas fa-exchange-alt"></i> Transactions
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{% url 'etat_paiements' %}" class="nav-link {% if 'etat-paiements' in request.path %}active{% endif %}">
+                        <i class="fas fa-clipboard-check"></i> État des paiements
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'bilan_comptable_detaille' %}active{% endif %}" href="{% url 'bilan_comptable_detaille' %}">
+                        <i class="fas fa-file-invoice-dollar"></i> Bilan Comptable Détaillé
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'creances' %}active{% endif %}" href="{% url 'creances' %}">
+                        <i class="fas fa-exclamation-triangle"></i> Créances
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'gestion_om' %}active{% endif %}" href="{% url 'gestion_om' %}">
+                        <i class="fas fa-trash-alt"></i> Ordures Ménagères
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'historique_frais_bien' %}active{% endif %}" href="{% url 'historique_frais_bien' %}">
+                        <i class="fas fa-chart-pie"></i> Frais par bien
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Contenu principal -->
+    <main class="content-main">
+        <!-- Messages -->
+        {% if messages %}
+            <div class="messages">
+                {% for message in messages %}
+                    <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Bootstrap JS et dépendances -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Chart.js pour les graphiques -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Script pour la gestion du menu mobile -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Éléments de la sidebar
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const sidebar = document.getElementById('sidebar');
+            const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+            if (sidebar && sidebarToggle && sidebarOverlay) {
+                const sidebarLinks = sidebar.querySelectorAll('.nav-link');
+
+                // Fonction pour ouvrir/fermer la sidebar
+                function toggleSidebar() {
+                    sidebar.classList.toggle('show');
+                    sidebarOverlay.classList.toggle('show');
+                }
+
+                // Événement de clic sur le bouton toggle
+                sidebarToggle.addEventListener('click', toggleSidebar);
+
+                // Événement de clic sur l'overlay pour fermer
+                sidebarOverlay.addEventListener('click', toggleSidebar);
+
+                // Fermer la sidebar après clic sur un lien (sur mobile)
+                sidebarLinks.forEach(link => {
+                    link.addEventListener('click', function() {
+                        if (window.innerWidth < 768) {
+                            toggleSidebar();
+                        }
+                    });
+                });
+
+                // Fermer la sidebar si la fenêtre est redimensionnée au-dessus de 768px
+                window.addEventListener('resize', function() {
+                    if (window.innerWidth >= 768 && sidebar.classList.contains('show')) {
+                        sidebar.classList.remove('show');
+                        sidebarOverlay.classList.remove('show');
+                    }
+                });
+            }
+
+            // Correction pour l'affichage du nom de la SCI sur Safari mobile
+            // Vérifier si nous sommes sur mobile
+            if (window.innerWidth < 768) {
+                // Forcer le texte du sélecteur de SCI
+                const sciNameElement = document.querySelector('.sci-name');
+                if (sciNameElement && (sciNameElement.textContent.trim() === '' || sciNameElement.textContent === 'Changer de SCI')) {
+                    sciNameElement.textContent = "{{ current_sci.nom }}";
+                }
+            }
+
+            // Pour les navigateurs qui ne préservent pas l'état du bouton
+            const sciDropdownButton = document.querySelector('.sci-selector .dropdown-toggle');
+            if (sciDropdownButton) {
+                const sciName = "{{ current_sci.nom }}";
+                const sciNameDisplay = sciDropdownButton.querySelector('.sci-name');
+                if (sciNameDisplay && (sciNameDisplay.textContent.trim() === '' || sciNameDisplay.textContent === 'Changer de SCI') && sciName) {
+                    sciNameDisplay.textContent = sciName;
+                }
+            }
+        });
+    </script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

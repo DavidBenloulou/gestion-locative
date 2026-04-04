@@ -1,0 +1,72 @@
+{% extends "principale/base.html" %}
+{% block title %}Liste des biens - Gestion Locative{% endblock %}
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h1>Liste des biens immobiliers - {{ current_sci.nom }}</h1>
+    <a href="{% url 'ajouter_bien' %}" class="btn btn-primary">
+        <i class="fas fa-plus"></i> Ajouter un bien
+    </a>
+</div>
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Numéro</th>
+                        <th>Adresse</th>
+                        <th>Ville</th>
+                        <th class="text-center">Loyer mensuel</th>
+                        <th class="text-center">Charges mensuelles</th>
+                        <th>Locataire</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in biens_list %}
+                    <tr>
+                        <td>{{ item.bien.get_type_bien_display }}</td>
+                        <td>{{ item.bien.numero|default_if_none:"" }}</td>
+                        <td>{{ item.bien.adresse }}</td>
+                        <td>{{ item.bien.ville }}</td>
+                        <td class="text-center">{{ item.bien.loyer_mensuel }} €</td>
+                        <td class="text-center">
+                            {% if item.bien.montant_charges %}
+                                {{ item.bien.montant_charges }} €
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.locataire_actif %}
+                                {{ item.locataire_actif.nom }} {{ item.locataire_actif.prenom }}
+                            {% else %}
+                                <span class="text-danger">Vacant</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'detail_bien' item.bien.id %}" class="btn btn-sm btn-info">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            <a href="{% url 'modifier_bien' item.bien.id %}" class="btn btn-sm btn-primary">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <a href="{% url 'supprimer_bien' item.bien.id %}" class="btn btn-sm btn-danger">
+                                <i class="fas fa-trash"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center">
+                            Aucun bien immobilier trouvé. Ajoutez votre premier bien !
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,312 @@
+{% extends "principale/base.html" %}
+
+{% block title %}Détail du locataire - {{ locataire.nom }} {{ locataire.prenom }} - Gestion Locative{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h1>{{ locataire.nom }} {{ locataire.prenom }}</h1>
+    <div>
+        <a href="{% url 'modifier_locataire' locataire.id %}" class="btn btn-primary">
+            <i class="fas fa-edit"></i> Modifier
+        </a>
+    </div>
+</div>
+
+<!-- Informations du locataire -->
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Informations générales</h5>
+            </div>
+            <div class="card-body">
+                <table class="table">
+                    <tr>
+                        <th>Nom :</th>
+                        <td>{{ locataire.nom }}</td>
+                    </tr>
+                    <tr>
+                        <th>Prénom :</th>
+                        <td>{{ locataire.prenom }}</td>
+                    </tr>
+                    <tr>
+                        <th>Téléphone fixe :</th>
+                        <td>{{ locataire.telephone|default:"-" }}</td>
+                    </tr>
+                    <tr>
+                        <th>Téléphone portable :</th>
+                        <td>{{ locataire.telephone_portable|default:"-" }}</td>
+                    </tr>
+                    <tr>
+                        <th>Email :</th>
+                        <td>{{ locataire.email|default:"-" }}</td>
+                    </tr>
+                    <tr>
+                        <th>Adresse :</th>
+                        <td>
+                            {% if locataire.adresse %}
+                                {{ locataire.adresse }}<br>
+                                {% if locataire.code_postal or locataire.ville %}
+                                    {{ locataire.code_postal }} {{ locataire.ville }}
+                                {% endif %}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Date de naissance :</th>
+                        <td>{{ locataire.date_naissance|date:"d/m/Y"|default:"-" }}</td>
+                    </tr>
+                    <tr>
+                        <th>Lieu de naissance :</th>
+                        <td>{{ locataire.lieu_naissance|default:"-" }}</td>
+                    </tr>
+                    <tr>
+                        <th>Statut :</th>
+                        <td>
+                            {% if locataire.date_sortie %}
+                                <span class="badge bg-secondary">Ancien locataire</span>
+                            {% else %}
+                                <span class="badge bg-success">Actif</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+<div class="col-md-6">
+    <!-- Section des logements occupés -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Logements occupés</h5>
+            <a href="{% url 'ajouter_location_bien' locataire.id %}" class="btn btn-sm btn-primary">
+                <i class="fas fa-plus"></i> Ajouter un logement
+            </a>
+        </div>
+        <div class="card-body">
+            {% if locations %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Adresse</th>
+                                <th>Loyer</th>
+                                <th>Caution</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for location in locations %}
+                                <tr>
+                                    <td>{{ location.bien.get_type_bien_display }}</td>
+                                    <td>{% if location.bien.numero %}{{ location.bien.numero }} - {% endif %}{{ location.bien.adresse }}</td>
+                                    <td>{{ location.bien.loyer_mensuel }} €</td>
+                                    <td>
+                                        {% if location.montant_caution %}
+                                            <span class="text-success">{{ location.montant_caution }} €</span>
+                                            {% if location.date_versement_caution %}
+                                                <br><small>Versée le {{ location.date_versement_caution|date:"d/m/Y" }}</small>
+                                            {% endif %}
+                                            {% if location.date_restitution_caution %}
+                                                <br><span class="text-danger">Restituée le {{ location.date_restitution_caution|date:"d/m/Y" }}</span>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="text-danger">Non versée</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <button type="button" class="btn btn-sm btn-info generate-receipt" data-bien-id="{{ location.bien.id }}">
+                                                <i class="fas fa-file-invoice"></i>
+                                            </button>
+                                            <a href="{% url 'modifier_location_bien' location.id %}" class="btn btn-sm btn-warning" title="Modifier">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            <a href="{% url 'supprimer_location_bien' location.id %}" class="btn btn-sm btn-danger" title="Supprimer">
+                                                <i class="fas fa-trash"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% elif biens.exists %}
+                {% for bien in biens.all %}
+                <div class="mb-3 {% if not forloop.last %}border-bottom pb-3{% endif %}">
+                    <h6>{{ bien.get_type_bien_display }} - {% if bien.numero %}{{ bien.numero }} - {% endif %}{{ bien.adresse }}</h6>
+                    <p>{{ bien.code_postal }} {{ bien.ville }}</p>
+                    <p><strong>Loyer mensuel :</strong> {{ bien.loyer_mensuel }} €</p>
+                    <div class="mt-2">
+                        <a href="{% url 'detail_bien' bien.id %}" class="btn btn-sm btn-info">
+                            <i class="fas fa-eye"></i> Voir le bien
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="alert alert-warning">
+                    Aucun logement n'est associé à ce locataire.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Transactions liées -->
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5>Transactions liées à ce locataire</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Type</th>
+                                <th>Mois concerné</th>
+                                <th>Montant</th>
+                                <th>Bien</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for transaction in transactions %}
+                            <tr>
+                                <td>{{ transaction.date }}</td>
+                                <td>
+                                    {% if transaction.type_transaction.categorie == 'RECETTE' %}
+                                        <span class="text-success">{{ transaction.type_transaction }}</span>
+                                    {% else %}
+                                        <span class="text-danger">{{ transaction.type_transaction }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if transaction.mois_concerne %}
+                                        {{ transaction.mois_concerne|date:"F Y" }}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if transaction.type_transaction.categorie == 'RECETTE' %}
+                                        <span class="text-success">+{{ transaction.montant }} €</span>
+                                    {% else %}
+                                        <span class="text-danger">-{{ transaction.montant }} €</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if transaction.bien %}
+                                        <a href="{% url 'detail_bien' transaction.bien.id %}">
+                                            {% if transaction.bien.numero %}{{ transaction.bien.numero }} - {% endif %}{{ transaction.bien.adresse }}
+                                        </a>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ transaction.description|default:"" }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" class="text-center">
+                                    Aucune transaction enregistrée pour ce locataire
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal unique pour la génération des quittances -->
+<div class="modal fade" id="quittanceModal" tabindex="-1" aria-labelledby="quittanceModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="quittanceModalLabel">Générer une quittance de loyer</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
+            <form id="quittanceForm" action="{% url 'generer_quittance' locataire_id=locataire.id %}" method="get" target="_blank">
+                <div class="modal-body">
+                    <input type="hidden" name="bien_id" id="selectedBienId">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="mois" class="form-label">Mois</label>
+                            <select name="mois" id="mois" class="form-select" required>
+                                <option value="1">Janvier</option>
+                                <option value="2">Février</option>
+                                <option value="3">Mars</option>
+                                <option value="4">Avril</option>
+                                <option value="5">Mai</option>
+                                <option value="6">Juin</option>
+                                <option value="7">Juillet</option>
+                                <option value="8">Août</option>
+                                <option value="9">Septembre</option>
+                                <option value="10">Octobre</option>
+                                <option value="11">Novembre</option>
+                                <option value="12">Décembre</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="annee" class="form-label">Année</label>
+                            <select name="annee" id="annee" class="form-select" required>
+                                {% for annee in range_annees %}
+                                    <option value="{{ annee }}" {% if annee == annee_courante %}selected{% endif %}>{{ annee }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-file-pdf me-2"></i>Générer
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialiser la modale une seule fois
+    const quittanceModal = new bootstrap.Modal(document.getElementById('quittanceModal'));
+
+    // Gérer les clics sur les boutons de génération de quittance
+    const generateButtons = document.querySelectorAll('.generate-receipt');
+    generateButtons.forEach(button => {
+        button.addEventListener('click', function(e) {
+            // Récupérer l'ID du bien associé à ce bouton
+            const bienId = this.getAttribute('data-bien-id');
+
+            // Définir l'ID du bien dans le formulaire
+            document.getElementById('selectedBienId').value = bienId;
+
+            // Afficher la modale
+            quittanceModal.show();
+        });
+    });
+
+    // Préselectionner le mois courant
+    const currentMonth = new Date().getMonth() + 1; // getMonth() retourne 0-11
+    const monthSelect = document.getElementById('mois');
+    if (monthSelect) {
+        monthSelect.value = currentMonth;
+    }
+});
+</script>
+{% endblock %}

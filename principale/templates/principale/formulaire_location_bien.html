@@ -1,0 +1,81 @@
+{% extends "principale/base.html" %}
+{% block title %}{{ titre }} - Gestion Locative{% endblock %}
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h1>{{ titre }}</h1>
+</div>
+<div class="card">
+    <div class="card-body">
+        <form method="post">
+            {% csrf_token %}
+            <h5 class="mb-3">Informations de location</h5>
+            <div class="row">
+                <div class="col-md-12 mb-3">
+                    <label for="{{ form.bien.id_for_label }}" class="form-label">Bien</label>
+                    {{ form.bien }}
+                    {% if form.bien.errors %}
+                        <div class="text-danger">{{ form.bien.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.date_entree.id_for_label }}" class="form-label">Date d'entrée</label>
+                    {{ form.date_entree }}
+                    {% if form.date_entree.errors %}
+                        <div class="text-danger">{{ form.date_entree.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.date_sortie.id_for_label }}" class="form-label">Date de sortie</label>
+                    {{ form.date_sortie }}
+                    <div class="form-text text-muted">Laisser vide si le locataire est toujours présent</div>
+                    {% if form.date_sortie.errors %}
+                        <div class="text-danger">{{ form.date_sortie.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            <h5 class="mt-4 mb-3">Informations sur la caution</h5>
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label for="{{ form.montant_caution.id_for_label }}" class="form-label">Montant de la caution (€)</label>
+                    {{ form.montant_caution }}
+                    <div class="form-text text-muted">La caution est considérée comme versée si un montant est indiqué</div>
+                    {% if form.montant_caution.errors %}
+                        <div class="text-danger">{{ form.montant_caution.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="{{ form.date_versement_caution.id_for_label }}" class="form-label">Date de versement</label>
+                    {{ form.date_versement_caution }}
+                    {% if form.date_versement_caution.errors %}
+                        <div class="text-danger">{{ form.date_versement_caution.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label for="{{ form.date_restitution_caution.id_for_label }}" class="form-label">Date de restitution</label>
+                    {{ form.date_restitution_caution }}
+                    <div class="form-text text-muted">Si la caution a été rendue</div>
+                    {% if form.date_restitution_caution.errors %}
+                        <div class="text-danger">{{ form.date_restitution_caution.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="d-flex justify-content-between mt-4">
+                {% if locataire %}
+                    <a href="{% url 'detail_locataire' locataire.id %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Retour
+                    </a>
+                {% else %}
+                    <a href="{% url 'liste_biens' %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Retour
+                    </a>
+                {% endif %}
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save"></i> Enregistrer
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

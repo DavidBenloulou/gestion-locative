@@ -1,0 +1,337 @@
+{% extends "principale/base.html" %}
+
+{% block title %}Liste des transactions - Gestion Locative{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h1>Liste des transactions - {{ current_sci.nom }}</h1>
+    <div>
+        <button type="button" class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#exportModal">
+            <i class="fas fa-file-export"></i> Exporter
+        </button>
+        <a href="{% url 'ajouter_transaction' %}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Ajouter une transaction
+        </a>
+    </div>
+</div>
+
+<!-- Modal pour l'export -->
+<div class="modal fade" id="exportModal" tabindex="-1" aria-labelledby="exportModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="exportModalLabel">Exporter les transactions</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="exportForm" action="{% url 'exporter_transactions' %}" method="get">
+          <div class="mb-3">
+            <label for="annee" class="form-label">Année</label>
+            <select class="form-select" id="annee" name="annee">
+              {% for annee in annees_disponibles %}
+                <option value="{{ annee }}" {% if annee == annee_courante %}selected{% endif %}>{{ annee }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Format d'export</label>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="format" id="formatPDF" value="pdf" checked>
+              <label class="form-check-label" for="formatPDF">PDF</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="format" id="formatExcel" value="excel">
+              <label class="form-check-label" for="formatExcel">Excel</label>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+        <button type="button" class="btn btn-primary" onclick="document.getElementById('exportForm').submit();">Exporter</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Filtres de recherche -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFilterForm" aria-expanded="false" aria-controls="collapseFilterForm">
+                <i class="fas fa-filter"></i> Filtres
+            </button>
+        </h5>
+    </div>
+    <div class="collapse" id="collapseFilterForm">
+        <div class="card-body">
+            <form method="get">
+                <div class="row">
+                    <div class="col-md-2 mb-3">
+                        <label class="form-label">Catégorie</label>
+                        <select name="categorie" id="filtre_categorie" class="form-select form-select-sm">
+                            <option value="">Toutes</option>
+                            <option value="RECETTE" {% if filtre_categorie == 'RECETTE' %}selected{% endif %}>Recettes</option>
+                            <option value="DEPENSE" {% if filtre_categorie == 'DEPENSE' %}selected{% endif %}>Dépenses</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label class="form-label">Type</label>
+                        <select name="type_transaction" id="filtre_type" class="form-select form-select-sm">
+                            <option value="">Tous les types</option>
+                            {% for type in types_transaction %}
+                                <option value="{{ type.id }}" data-categorie="{{ type.categorie }}" {% if filtre_type_id == type.id|stringformat:"d" %}selected{% endif %}>
+                                    {{ type.categorie }} - {{ type.nom }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label class="form-label">Locataire</label>
+                        <select name="locataire" id="filtre_locataire" class="form-select form-select-sm">
+                            <option value="">Tous</option>
+                            {% for loc in locataires_filtre %}
+                                <option value="{{ loc.id }}" {% if filtre_locataire_id == loc.id|stringformat:"d" %}selected{% endif %}>
+                                    {{ loc.nom }} {{ loc.prenom }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label class="form-label">Date de début</label>
+                        <input type="date" name="date_debut" class="form-control form-control-sm" value="{{ filtre_date_debut }}">
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label class="form-label">Date de fin</label>
+                        <input type="date" name="date_fin" class="form-control form-control-sm" value="{{ filtre_date_fin }}">
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label class="form-label">SCI uniquement</label>
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" name="sci" value="true" id="sci_filter" {% if filtre_sci_only %}checked{% endif %}>
+                            <label class="form-check-label" for="sci_filter">Transactions SCI</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-12 text-center">
+                        <button type="submit" class="btn btn-primary btn-sm">
+                            <i class="fas fa-search"></i> Filtrer
+                        </button>
+                        <a href="{% url 'liste_transactions' %}" class="btn btn-secondary btn-sm">
+                            <i class="fas fa-sync"></i> Réinitialiser
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Résumé -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card card-recap card-recettes">
+            <div class="card-body text-center">
+                <i class="fas fa-arrow-up card-icon"></i>
+                <h5 class="card-title">Recettes</h5>
+                <h2 class="card-value">{{ recettes|floatformat:2 }} €</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-recap card-depenses">
+            <div class="card-body text-center">
+                <i class="fas fa-arrow-down card-icon"></i>
+                <h5 class="card-title">Dépenses</h5>
+                <h2 class="card-value">{{ depenses|floatformat:2 }} €</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-recap {% if bilan >= 0 %}card-recettes{% else %}card-depenses{% endif %}">
+            <div class="card-body text-center">
+                <i class="fas fa-balance-scale card-icon"></i>
+                <h5 class="card-title">Bilan</h5>
+                <h2 class="card-value">{{ bilan|floatformat:2 }} €</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Mois concerné</th>
+                        <th>Type</th>
+                        <th>Montant</th>
+                        <th>Bien / SCI</th>
+                        <th>Locataire</th>
+                        <th>Description</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for transaction in transactions %}
+                    <tr>
+                        <td>{{ transaction.date }}</td>
+                        <td>{{ transaction.mois_concerne|date:"M Y" }}</td>
+                        <td>
+                            {% if transaction.type_transaction.categorie == 'RECETTE' %}
+                                <span class="text-success">{{ transaction.type_transaction }}</span>
+                            {% else %}
+                                <span class="text-danger">{{ transaction.type_transaction }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if transaction.type_transaction.categorie == 'RECETTE' %}
+                                <span class="text-success">+{{ transaction.montant }} €</span>
+                            {% else %}
+                                <span class="text-danger">-{{ transaction.montant }} €</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if transaction.locataire %}
+                                {% if transaction.bien %}
+                                    <a href="{% url 'detail_bien' transaction.bien.id %}">
+                                        {% if transaction.bien.numero %}{{ transaction.bien.numero }} - {% endif %}{{ transaction.bien.adresse }}
+                                    </a>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="badge bg-secondary">SCI</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if transaction.locataire %}
+                                <a href="{% url 'detail_locataire' transaction.locataire.id %}">
+                                    {{ transaction.locataire.nom }} {{ transaction.locataire.prenom }}
+                                </a>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ transaction.description|default:"-"|truncatechars:30 }}</td>
+                        <td>
+                            <a href="{% url 'detail_transaction' transaction.id %}" class="btn btn-sm btn-info">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            <a href="{% url 'modifier_transaction' transaction.id %}" class="btn btn-sm btn-primary">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <a href="{% url 'supprimer_transaction' transaction.id %}" class="btn btn-sm btn-danger">
+                                <i class="fas fa-trash"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center">
+                            Aucune transaction trouvée. Ajoutez votre première transaction !
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+   </div>
+</div>
+
+{% if transactions.has_other_pages %}
+<nav aria-label="Navigation de la pagination">
+    <ul class="pagination justify-content-center mt-4">
+        {% if transactions.has_previous %}
+        <li class="page-item">
+            <a class="page-link" href="?page=1&{{ request.GET.urlencode }}" aria-label="Première page">
+                <span aria-hidden="true">&laquo;&laquo;</span>
+            </a>
+        </li>
+        <li class="page-item">
+            <a class="page-link" href="?page={{ transactions.previous_page_number }}&{{ request.GET.urlencode }}" aria-label="Page précédente">
+                <span aria-hidden="true">&laquo;</span>
+            </a>
+        </li>
+        {% else %}
+        <li class="page-item disabled"><span class="page-link">&laquo;&laquo;</span></li>
+        <li class="page-item disabled"><span class="page-link">&laquo;</span></li>
+        {% endif %}
+
+        {% for num in transactions.paginator.page_range %}
+            {% if transactions.number == num %}
+            <li class="page-item active" aria-current="page"><span class="page-link">{{ num }}</span></li>
+            {% elif num > transactions.number|add:'-3' and num < transactions.number|add:'3' %}
+            <li class="page-item"><a class="page-link" href="?page={{ num }}&{{ request.GET.urlencode }}">{{ num }}</a></li>
+            {% endif %}
+        {% endfor %}
+
+        {% if transactions.has_next %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ transactions.next_page_number }}&{{ request.GET.urlencode }}" aria-label="Page suivante">
+                <span aria-hidden="true">&raquo;</span>
+            </a>
+        </li>
+        <li class="page-item">
+            <a class="page-link" href="?page={{ transactions.paginator.num_pages }}&{{ request.GET.urlencode }}" aria-label="Dernière page">
+                <span aria-hidden="true">&raquo;&raquo;</span>
+            </a>
+        </li>
+        {% else %}
+        <li class="page-item disabled"><span class="page-link">&raquo;</span></li>
+        <li class="page-item disabled"><span class="page-link">&raquo;&raquo;</span></li>
+        {% endif %}
+    </ul>
+    <p class="text-center text-muted">
+        Page {{ transactions.number }} sur {{ transactions.paginator.num_pages }}
+        ({{ transactions.paginator.count }} transaction{{ transactions.paginator.count|pluralize }} au total)
+    </p>
+</nav>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+
+        // Si des filtres sont appliqués, ouvrir le panneau
+        if (urlParams.get('categorie') || urlParams.get('type_transaction') ||
+            urlParams.get('locataire') || urlParams.get('date_debut') ||
+            urlParams.get('date_fin') || urlParams.get('sci')) {
+            document.getElementById('collapseFilterForm').classList.add('show');
+        }
+
+        // Filtrer les types en fonction de la catégorie sélectionnée
+        const categorieSelect = document.getElementById('filtre_categorie');
+        const typeSelect = document.getElementById('filtre_type');
+
+        categorieSelect.addEventListener('change', function() {
+            const categorie = this.value;
+            const options = typeSelect.querySelectorAll('option');
+            options.forEach(function(option) {
+                if (option.value === '') {
+                    option.style.display = '';
+                } else if (!categorie || option.dataset.categorie === categorie) {
+                    option.style.display = '';
+                } else {
+                    option.style.display = 'none';
+                }
+            });
+            // Réinitialiser le type si le type sélectionné n'est plus visible
+            if (typeSelect.selectedOptions[0] && typeSelect.selectedOptions[0].style.display === 'none') {
+                typeSelect.value = '';
+            }
+        });
+
+        // Déclencher le filtre initial si une catégorie est déjà sélectionnée
+        if (categorieSelect.value) {
+            categorieSelect.dispatchEvent(new Event('change'));
+        }
+    });
+</script>
+{% endblock %}

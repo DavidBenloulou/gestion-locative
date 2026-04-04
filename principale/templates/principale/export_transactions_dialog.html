@@ -1,0 +1,44 @@
+{% extends "principale/base.html" %}
+{% block title %}Export des transactions - Gestion Locative{% endblock %}
+{% block content %}
+<div class="container">
+    <div class="card mt-4 mx-auto" style="max-width: 500px;">
+        <div class="card-header">
+            <h5>Exporter les transactions</h5>
+        </div>
+        <div class="card-body">
+            <form id="exportTransactionsForm" action="{% url 'exporter_transactions' %}" method="get">
+                <div class="form-group">
+                    <label for="annee">Année :</label>
+                    <select class="form-control" id="annee" name="annee">
+                        {% for an in annees_disponibles %}
+                            <option value="{{ an }}" {% if an == annee_courante %}selected{% endif %}>{{ an }}</option>
+                        {% empty %}
+                            <option value="{{ annee_courante }}">{{ annee_courante }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Format d'export :</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="format" id="formatPDF" value="pdf" checked>
+                        <label class="form-check-label" for="formatPDF">
+                            PDF
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="format" id="formatExcel" value="excel">
+                        <label class="form-check-label" for="formatExcel">
+                            Excel
+                        </label>
+                    </div>
+                </div>
+                <div class="mt-4 d-flex justify-content-between">
+                    <a href="{% url retour_url %}" class="btn btn-secondary">Retour</a>
+                    <button type="submit" class="btn btn-primary">Exporter</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

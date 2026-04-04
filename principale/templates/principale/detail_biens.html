@@ -1,0 +1,180 @@
+{% extends "principale/base.html" %}
+
+{% block title %}Détail du bien - {{ bien.adresse }} - Gestion Locative{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h1>{{ bien.get_type_bien_display }} - {{ bien.adresse }}</h1>
+    <div>
+        <a href="{% url 'modifier_bien' bien.id %}" class="btn btn-primary">
+            <i class="fas fa-edit"></i> Modifier
+        </a>
+        <a href="{% url 'supprimer_bien' bien.id %}" class="btn btn-danger">
+            <i class="fas fa-trash"></i> Supprimer
+        </a>
+    </div>
+</div>
+
+<!-- Informations du bien -->
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Informations générales</h5>
+            </div>
+            <div class="card-body">
+                <table class="table">
+                    <tr>
+                        <th>Type de bien :</th>
+                        <td>{{ bien.get_type_bien_display }}</td>
+                    </tr>
+                    <tr>
+                        <th>Adresse :</th>
+                        <td>{{ bien.adresse }}</td>
+                    </tr>
+                    <tr>
+                        <th>Code postal :</th>
+                        <td>{{ bien.code_postal }}</td>
+                    </tr>
+                    <tr>
+                        <th>Ville :</th>
+                        <td>{{ bien.ville }}</td>
+                    </tr>
+                    <tr>
+                        <th>Loyer hors charges :</th>
+                        <td>{{ bien.loyer_mensuel }} €</td>
+                    </tr>
+                    <tr>
+                        <th>Montant des charges :</th>
+                        <td>
+                            {% if bien.montant_charges %}
+                                {{ bien.montant_charges }} €
+                            {% else %}
+                                Non défini
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Montant de la caution :</th>
+                        <td>
+                            {% if bien.montant_caution %}
+                                {{ bien.montant_caution }} €
+                            {% else %}
+                                Non défini
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% if bien.numero %}
+                    <tr>
+                        <th>Numéro :</th>
+                        <td>{{ bien.numero }}</td>
+                    </tr>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>Locataires actuels</h5>
+            </div>
+            <div class="card-body">
+                {% if locataires_actuels %}
+                    {% for locataire in locataires_actuels %}
+                        <div class="mb-3">
+                            <h6>{{ locataire.nom }} {{ locataire.prenom }}</h6>
+                            <p>
+                                <strong>Date d'entrée :</strong> {{ locataire.date_entree }}<br>
+                                {% if locataire.telephone %}
+                                    <strong>Téléphone :</strong> {{ locataire.telephone }}<br>
+                                {% endif %}
+                                {% if locataire.email %}
+                                    <strong>Email :</strong> {{ locataire.email }}<br>
+                                {% endif %}
+                                <strong>Caution :</strong>
+                                {% if locataire.caution_versee %}
+                                    {% if bien.montant_caution and locataire.montant_caution %}
+                                        {% if locataire.montant_caution >= bien.montant_caution %}
+                                            <span class="text-success">{{ locataire.montant_caution }} € (versée complètement)</span>
+                                        {% else %}
+                                            <span class="text-warning">{{ locataire.montant_caution }} € / {{ bien.montant_caution }} € (versée partiellement)</span>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="text-success">{{ locataire.montant_caution }} € versée</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-danger">Non versée</span>
+                                {% endif %}
+                            </p>
+                            <a href="{% url 'detail_locataire' locataire.id %}" class="btn btn-sm btn-info">
+                                <i class="fas fa-eye"></i> Voir
+                            </a>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-center">Aucun locataire actuellement</p>
+
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Transactions récentes -->
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5>Transactions récentes</h5>
+                <a href="{% url 'ajouter_transaction' %}?bien={{ bien.id }}" class="btn btn-sm btn-primary">
+                    <i class="fas fa-plus"></i> Ajouter une transaction
+                </a>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Type</th>
+                                <th>Montant</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for transaction in transactions %}
+                            <tr>
+                                <td>{{ transaction.date }}</td>
+                                <td>
+                                    {% if transaction.type_transaction.categorie == 'RECETTE' %}
+                                        <span class="text-success">{{ transaction.type_transaction }}</span>
+                                    {% else %}
+                                        <span class="text-danger">{{ transaction.type_transaction }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if transaction.type_transaction.categorie == 'RECETTE' %}
+                                        <span class="text-success">+{{ transaction.montant }} €</span>
+                                    {% else %}
+                                        <span class="text-danger">-{{ transaction.montant }} €</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ transaction.description|default:"" }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="text-center">
+                                    Aucune transaction enregistrée pour ce bien
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

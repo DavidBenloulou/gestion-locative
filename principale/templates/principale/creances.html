@@ -1,0 +1,112 @@
+{% extends 'principale/base.html' %}
+
+{% block title %}Vérification des loyers manquants{% endblock %}
+
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h1>Vérification des créances - {{ current_sci.nom }}</h1>
+
+    <!-- Ajout du bouton d'impression -->
+    <a href="{% url 'apercu_impression_creances' %}" class="btn btn-primary">
+        <i class="fas fa-print me-2"></i> Exporter
+    </a>
+</div>
+
+{% if recapitulatif_paiements %}
+    <div class="alert alert-info mb-4">
+        <i class="fas fa-info-circle me-2"></i> Cette page affiche uniquement les locataires ayant des paiements manquants ou partiels (loyers, caution, ordures ménagères).
+    </div>
+
+    <div class="accordion" id="accordionLoyers">
+        {% for item in recapitulatif_paiements %}
+            <div class="accordion-item mb-3 border">
+                <h2 class="accordion-header" id="heading{{ item.locataire.id }}">
+                    <button class="accordion-button collapsed" type="button"
+                            data-bs-toggle="collapse" data-bs-target="#collapse{{ item.locataire.id }}"
+                            aria-expanded="false"
+                            aria-controls="collapse{{ item.locataire.id }}">
+                        <div class="row w-100">
+                            <div class="col-md-4">
+                                <strong>{{ item.locataire.nom }} {{ item.locataire.prenom }}</strong>
+                            </div>
+                            <div class="col-md-4">
+                                {{ item.all_biens_str }}
+                            </div>
+                            <div class="col-md-4 text-end text-danger">
+                                <strong>Total dû : {{ item.total_manquant|floatformat:2 }} €</strong>
+                            </div>
+                        </div>
+                    </button>
+                </h2>
+                <!-- Suppression de data-bs-parent pour permettre l'ouverture simultanée -->
+                <div id="collapse{{ item.locataire.id }}" class="accordion-collapse collapse"
+                     aria-labelledby="heading{{ item.locataire.id }}">
+                    <div class="accordion-body">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Type</th>
+                                    <th>Période</th>
+                                    <th>Montant attendu</th>
+                                    <th>Montant payé</th>
+                                    <th>Montant manquant</th>
+                                    <th>Statut</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for paiement in item.paiements %}
+                                    <tr class="{% if paiement.statut == 'Non payé' %}table-danger{% elif paiement.statut == 'Partiel' %}table-warning{% endif %}">
+                                        <td>{{ paiement.type }}</td>
+                                        <td>{{ paiement.mois }}</td>
+                                        <td>
+                                            {% if paiement.montant_attendu == 'À déterminer' %}
+                                                {{ paiement.montant_attendu }}
+                                            {% else %}
+                                                {{ paiement.montant_attendu|floatformat:2 }} €
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ paiement.montant_paye|floatformat:2 }} €</td>
+                                        <td class="text-danger fw-bold">
+                                            {% if paiement.montant_manquant == 'À déterminer' %}
+                                                {{ paiement.montant_manquant }}
+                                            {% else %}
+                                                {{ paiement.montant_manquant|floatformat:2 }} €
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if paiement.statut == 'Non payé' %}
+                                                <span class="badge bg-danger">{{ paiement.statut }}</span>
+                                            {% elif paiement.statut == 'Partiel' %}
+                                                <span class="badge bg-warning text-dark">{{ paiement.statut }}</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">{{ paiement.statut }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <a href="{% url 'ajouter_transaction' %}?locataire={{ item.locataire.id }}" class="btn btn-sm btn-primary">
+                                                <i class="fas fa-plus-circle"></i> Enregistrer paiement
+                                            </a>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+
+                        <div class="mt-3">
+                            <a href="{% url 'detail_locataire' locataire_id=item.locataire.id %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-user"></i> Voir détails du locataire
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="alert alert-success">
+        <i class="fas fa-check-circle me-2"></i> Félicitations ! Tous les locataires sont à jour dans leurs paiements.
+    </div>
+{% endif %}
+{% endblock %}
