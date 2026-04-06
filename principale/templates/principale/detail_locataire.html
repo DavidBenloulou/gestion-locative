@@ -106,18 +106,18 @@
                                     <td>{% if location.bien.numero %}{{ location.bien.numero }} - {% endif %}{{ location.bien.adresse }}</td>
                                     <td>{{ location.bien.loyer_mensuel }} €</td>
                                     <td>
-                                        {% if location.montant_caution is None %}
+                                        {% if location.bien.montant_caution is None %}
                                             <span class="text-muted">Non renseigné</span>
-                                        {% elif location.montant_caution == 0 %}
+                                        {% elif location.bien.montant_caution == 0 %}
                                             <span class="text-muted">N/A</span>
-                                        {% elif location.caution_total_verse >= location.montant_caution %}
+                                        {% elif location.caution_total_verse >= location.bien.montant_caution %}
                                             {% if location.caution_nb_versements > 1 %}
                                                 <span class="text-success">{{ location.caution_total_verse }} €<br><small>Versements échelonnés</small></span>
                                             {% else %}
                                                 <span class="text-success">{{ location.caution_total_verse }} €{% if location.caution_premiere_date %}<br><small>Versée le {{ location.caution_premiere_date|date:"d/m/Y" }}</small>{% endif %}</span>
                                             {% endif %}
                                         {% elif location.caution_total_verse > 0 %}
-                                            <span class="text-warning">{{ location.caution_total_verse }} € / {{ location.montant_caution }} €<br><small>Versements échelonnés</small></span>
+                                            <span class="text-warning">{{ location.caution_total_verse }} € / {{ location.bien.montant_caution }} €<br><small>Versements échelonnés</small></span>
                                         {% else %}
                                             <span class="text-danger">Non versée</span>
                                         {% endif %}
