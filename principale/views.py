@@ -716,6 +716,8 @@ def liste_transactions(request):
         biens__sci=request.current_sci
     ).distinct().order_by('nom', 'prenom')
 
+    query_params = request.GET.copy()
+    query_params.pop('page', None)
     context = {
         'transactions': transactions_page,
         'recettes': recettes,
@@ -731,8 +733,8 @@ def liste_transactions(request):
         'filtre_date_debut': date_debut or '',
         'filtre_date_fin': date_fin or '',
         'filtre_sci_only': sci_only,
+        'query_params': query_params.urlencode(),
     }
-
     return render(request, 'principale/liste_transactions.html', context)
 
 def ajouter_transaction(request):
