@@ -1174,7 +1174,7 @@ def etat_paiements(request):
             if not location:
                 continue
 
-            montant_caution_attendu = location.montant_caution
+            montant_caution_attendu = bien.montant_caution
             total_caution_verse = Transaction.objects.filter(
                 locataire=locataire,
                 bien=bien,
@@ -2463,7 +2463,7 @@ def creances(request):
                 continue
 
             # Vérifier la caution
-            montant_caution_attendu = location.montant_caution
+            montant_caution_attendu = bien.montant_caution
             total_caution_verse = sum(
                 t.montant for t in transactions_caution
                 if t.locataire_id == locataire.id
