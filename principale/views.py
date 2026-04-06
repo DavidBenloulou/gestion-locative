@@ -108,22 +108,43 @@ def detail_bien(request, bien_id):
         locations__date_sortie__isnull=True
     ).distinct()
 
-    # ← OPTIMISATION : Transactions avec relations préchargées
+    # Locations actives avec infos caution
+    locations_actives = LocationBien.objects.filter(
+        bien=bien,
+        date_sortie__isnull=True
+    ).select_related('locataire')
+
+    for location in locations_actives:
+        trans_caution = Transaction.objects.filter(
+            locataire=location.locataire,
+            bien=bien,
+            type_transaction_id=18
+        ).order_by('date')
+        total_verse = sum(t.montant for t in trans_caution)
+        nb_versements = trans_caution.count()
+        premiere_date = trans_caution.first().date if trans_caution.exists() else None
+        location.caution_total_verse = total_verse
+        location.caution_nb_versements = nb_versements
+        location.caution_premiere_date = premiere_date
+
+    # Créer un dict locataire_id -> location pour accès facile dans le template
+    locations_par_locataire = {loc.locataire_id: loc for loc in locations_actives}
+
     transactions = Transaction.objects.filter(
         bien=bien
     ).select_related(
-        'type_transaction',  # ← OPTIMISATION
-        'locataire',        # ← OPTIMISATION
-        'bien',             # ← OPTIMISATION
-        'sci'               # ← OPTIMISATION
+        'type_transaction',
+        'locataire',
+        'bien',
+        'sci'
     ).order_by('-date')
 
     context = {
         'bien': bien,
         'locataires_actuels': locataires_actuels,
+        'locations_actives': locations_actives,
         'transactions': transactions,
     }
-
     return render(request, 'principale/detail_biens.html', context)
 
 def ajouter_bien(request):
@@ -183,10 +204,25 @@ def liste_locataires(request):
     locataires = Locataire.objects.filter(
         sci=request.current_sci
     ).prefetch_related(
-        'biens',           # ← OPTIMISATION : Précharge les biens
-        'locations',       # ← OPTIMISATION : Précharge les locations
-        'locations__bien'  # ← OPTIMISATION : Précharge le bien de chaque location
+        'biens',
+        'locations',
+        'locations__bien'
     ).order_by('nom', 'prenom')
+
+    # Enrichir les locations avec les données de caution
+    for locataire in locataires:
+        for location in locataire.locations.all():
+            trans_caution = Transaction.objects.filter(
+                locataire=locataire,
+                bien=location.bien,
+                type_transaction_id=18
+            ).order_by('date')
+            total_verse = sum(t.montant for t in trans_caution)
+            nb_versements = trans_caution.count()
+            premiere_date = trans_caution.first().date if trans_caution.exists() else None
+            location.caution_total_verse = total_verse
+            location.caution_nb_versements = nb_versements
+            location.caution_premiere_date = premiere_date
 
     return render(request, 'principale/liste_locataires.html', {'locataires': locataires})
 
@@ -232,6 +268,21 @@ def detail_locataire(request, locataire_id):
     date_entree = locataire.date_entree
     annee_debut = date_entree.year if date_entree else annee_courante
     range_annees = range(annee_debut, annee_courante + 1)
+    # Enrichir les locations avec les données de caution
+    for location in locations:
+        trans_caution = Transaction.objects.filter(
+            locataire=locataire,
+            bien=location.bien,
+            type_transaction_id=18
+        ).order_by('date')
+        
+        total_verse = sum(t.montant for t in trans_caution)
+        nb_versements = trans_caution.count()
+        premiere_date = trans_caution.first().date if trans_caution.exists() else None
+        
+        location.caution_total_verse = total_verse
+        location.caution_nb_versements = nb_versements
+        location.caution_premiere_date = premiere_date
 
     context = {
         'locataire': locataire,
@@ -241,7 +292,6 @@ def detail_locataire(request, locataire_id):
         'range_annees': range_annees,
         'annee_courante': annee_courante,
     }
-
     return render(request, 'principale/detail_locataire.html', context)
 
 def generer_quittance(request, locataire_id):
@@ -827,7 +877,6 @@ def ajouter_transaction(request):
                         ).first()
 
                         if location:
-                            location.montant_caution = transaction.montant
                             location.date_versement_caution = transaction.date
                             location.save()
                             messages.info(request, "Les informations de caution ont été automatiquement mises à jour.")
@@ -930,7 +979,6 @@ def modifier_transaction(request, transaction_id):
                         ).first()
 
                         if location:
-                            location.montant_caution = transaction.montant
                             location.date_versement_caution = transaction.date
                             location.save()
                             messages.info(request, "Les informations de caution ont été automatiquement mises à jour.")
@@ -1126,12 +1174,29 @@ def etat_paiements(request):
             if not location:
                 continue
 
-            if location.montant_caution is not None and location.date_versement_caution:
-                depot_garantie_status = "OK"
-            elif location.montant_caution is not None and not location.date_versement_caution:
-                depot_garantie_status = "Manquant"
-            else:
+            montant_caution_attendu = location.montant_caution
+            total_caution_verse = Transaction.objects.filter(
+                locataire=locataire,
+                bien=bien,
+                type_transaction_id=18
+            ).aggregate(total=Sum('montant'))['total'] or 0
+
+            nb_transactions_caution = Transaction.objects.filter(
+                locataire=locataire,
+                bien=bien,
+                type_transaction_id=18
+            ).count()
+
+            if montant_caution_attendu is None:
                 depot_garantie_status = "Non renseigné"
+            elif montant_caution_attendu == 0:
+                depot_garantie_status = "N/A"
+            elif total_caution_verse >= montant_caution_attendu:
+                depot_garantie_status = "OK"
+            elif total_caution_verse > 0:
+                depot_garantie_status = f"Partiel ({total_caution_verse}€ / {montant_caution_attendu}€)"
+            else:
+                depot_garantie_status = "Manquant"
 
             if location.date_entree and location.date_entree <= dernier_jour_mois_courant:
                 paiements_loyer = Transaction.objects.filter(
@@ -2361,7 +2426,13 @@ def creances(request):
                 transactions_par_cle[cle] = []
             transactions_par_cle[cle].append(t)
 
-    # 3. Tous les montants OM attendus (TOUTES les années)
+    # 3. Transactions de caution SANS filtre de date (historique complet)
+    transactions_caution = Transaction.objects.filter(
+        sci=request.current_sci,
+        type_transaction_id=18
+    ).select_related('locataire', 'bien')
+
+    # 4. Tous les montants OM attendus (TOUTES les années)
     montants_om_dict = {}
     for om in MontantOM.objects.filter(sci=request.current_sci):
         cle = (om.locataire_id, om.bien_id)
@@ -2392,22 +2463,25 @@ def creances(request):
                 continue
 
             # Vérifier la caution
-            if not getattr(location, 'date_versement_caution', None):
-                montant_caution = None
-                if hasattr(location, 'montant_caution') and location.montant_caution is not None:
-                    montant_caution = location.montant_caution
-                elif hasattr(bien, 'montant_caution') and bien.montant_caution is not None:
-                    montant_caution = bien.montant_caution
+            montant_caution_attendu = location.montant_caution
+            total_caution_verse = sum(
+                t.montant for t in transactions_caution
+                if t.locataire_id == locataire.id
+                and t.bien_id == bien.id
+            )
 
-                if montant_caution is not None:
-                    montant_caution_decimal = decimal.Decimal(str(montant_caution))
+            if montant_caution_attendu is not None and montant_caution_attendu > 0:
+                if total_caution_verse < montant_caution_attendu:
+                    montant_caution_decimal = decimal.Decimal(str(montant_caution_attendu))
+                    verse_decimal = decimal.Decimal(str(total_caution_verse))
+                    statut = 'Partiel' if total_caution_verse > 0 else 'Non versée'
                     paiements_problematiques.append({
                         'type': f'Caution ({bien.numero}-{bien.adresse})',
                         'mois': 'N/A',
                         'montant_attendu': montant_caution_decimal,
-                        'montant_paye': decimal.Decimal('0'),
-                        'montant_manquant': montant_caution_decimal,
-                        'statut': 'Non versée'
+                        'montant_paye': verse_decimal,
+                        'montant_manquant': montant_caution_decimal - verse_decimal,
+                        'statut': statut
                     })
 
             if location.date_entree:
@@ -2420,10 +2494,8 @@ def creances(request):
                     mois_v = date_courante.month
                     annee_v = date_courante.year
 
-                    # Récupérer les transactions pour ce mois depuis le dictionnaire
                     trans_mois = transactions_par_cle.get((locataire.id, bien.id, annee_v, mois_v), [])
 
-                    # Calculer loyer payé et charges payées
                     total_loyer_paye = 0
                     total_charges_paye = 0
                     for t in trans_mois:
@@ -2464,7 +2536,7 @@ def creances(request):
                     else:
                         date_courante = date(annee_v, mois_v + 1, 1)
 
-            # Vérification OM — pour TOUTES les années où un montant est défini
+            # Vérification OM
             liste_om = montants_om_dict.get((locataire.id, bien.id), [])
             for om in liste_om:
                 total_om_paye = 0
@@ -4510,7 +4582,6 @@ def gestion_om(request):
     }
 
     return render(request, 'principale/gestion_om.html', context)
-
 
 def save_montant_om(request):
     """Endpoint AJAX pour enregistrer un montant OM à la saisie"""

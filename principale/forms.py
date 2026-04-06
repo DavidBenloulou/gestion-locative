@@ -239,15 +239,17 @@ class LocationBienForm(forms.ModelForm):
         model = LocationBien
         fields = [
             'bien', 'date_entree', 'date_sortie',
-            'montant_caution', 'date_versement_caution', 'date_restitution_caution'
+            'montant_caution', 'date_restitution_caution'
         ]
         widgets = {
             'bien': forms.Select(attrs={'class': 'form-select'}),
             'date_entree': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
             'date_sortie': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
             'montant_caution': forms.NumberInput(attrs={'class': 'form-control'}),
-            'date_versement_caution': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
             'date_restitution_caution': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+        }
+        labels = {
+            'montant_caution': 'Montant de caution attendu',
         }
 
     def __init__(self, *args, **kwargs):

@@ -47,16 +47,20 @@
                                         {% endif %}
                                     </td>
                                     <td class="align-middle">
-                                        {% if location.montant_caution and location.montant_caution > 0 %}
-                                            {{ location.montant_caution }} €
-                                            {% if location.date_versement_caution %}
-                                                <br><small>Versée le {{ location.date_versement_caution|date:"d/m/Y" }}</small>
-                                            {% endif %}
-                                            {% if location.date_restitution_caution %}
-                                                <br><span class="text-danger">Restituée le {{ location.date_restitution_caution|date:"d/m/Y" }}</span>
+                                        {% if location.caution_total_verse > 0 %}
+                                            {{ location.caution_total_verse }} €
+                                            {% if location.caution_nb_versements > 1 %}
+                                                <br><small>Versements échelonnés</small>
+                                            {% else %}
+                                                {% if location.caution_premiere_date %}
+                                                    <br><small>Versée le {{ location.caution_premiere_date|date:"d/m/Y" }}</small>
+                                                {% endif %}
                                             {% endif %}
                                         {% else %}
                                             <span class="text-danger">Non versée</span>
+                                        {% endif %}
+                                        {% if location.date_restitution_caution %}
+                                            <br><span class="text-danger">Restituée le {{ location.date_restitution_caution|date:"d/m/Y" }}</span>
                                         {% endif %}
                                     </td>
                                     {% if forloop.first %}

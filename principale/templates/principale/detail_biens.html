@@ -95,19 +95,21 @@
                                 {% endif %}
                                     <strong>Caution :</strong>
                                     {% if bien.montant_caution == 0 %}
-                                        <span class="text-muted">Sans Objet</span>
-                                    {% elif locataire.caution_versee %}
-                                        {% if bien.montant_caution != None and locataire.montant_caution != None %}
-                                            {% if locataire.montant_caution >= bien.montant_caution %}
-                                                <span class="text-success">{{ locataire.montant_caution }} € (versée complètement)</span>
-                                            {% else %}
-                                                <span class="text-warning">{{ locataire.montant_caution }} € / {{ bien.montant_caution }} € (versée partiellement)</span>
-                                            {% endif %}
-                                        {% else %}
-                                            <span class="text-success">{{ locataire.montant_caution }} € versée</span>
-                                        {% endif %}
+                                        <span class="text-muted">N/A</span>
                                     {% else %}
-                                        <span class="text-danger">Non versée</span>
+                                        {% for location in locations_actives %}
+                                            {% if location.locataire.id == locataire.id %}
+                                                {% if location.caution_total_verse > 0 %}
+                                                    {% if location.caution_nb_versements > 1 %}
+                                                        <span class="text-success">{{ location.caution_total_verse }} €<br><small>Versements échelonnés</small></span>
+                                                    {% else %}
+                                                        <span class="text-success">{{ location.caution_total_verse }} €{% if location.caution_premiere_date %} (versée le {{ location.caution_premiere_date|date:"d/m/Y" }}){% endif %}</span>
+                                                    {% endif %}
+                                                {% else %}
+                                                    <span class="text-danger">Non versée</span>
+                                                {% endif %}
+                                            {% endif %}
+                                        {% endfor %}
                                     {% endif %}
                             </p>
                             <a href="{% url 'detail_locataire' locataire.id %}" class="btn btn-sm btn-info">

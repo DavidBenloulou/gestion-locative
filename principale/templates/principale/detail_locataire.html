@@ -106,16 +106,23 @@
                                     <td>{% if location.bien.numero %}{{ location.bien.numero }} - {% endif %}{{ location.bien.adresse }}</td>
                                     <td>{{ location.bien.loyer_mensuel }} €</td>
                                     <td>
-                                        {% if location.montant_caution %}
-                                            <span class="text-success">{{ location.montant_caution }} €</span>
-                                            {% if location.date_versement_caution %}
-                                                <br><small>Versée le {{ location.date_versement_caution|date:"d/m/Y" }}</small>
+                                        {% if location.montant_caution is None %}
+                                            <span class="text-muted">Non renseigné</span>
+                                        {% elif location.montant_caution == 0 %}
+                                            <span class="text-muted">N/A</span>
+                                        {% elif location.caution_total_verse >= location.montant_caution %}
+                                            {% if location.caution_nb_versements > 1 %}
+                                                <span class="text-success">{{ location.caution_total_verse }} €<br><small>Versements échelonnés</small></span>
+                                            {% else %}
+                                                <span class="text-success">{{ location.caution_total_verse }} €{% if location.caution_premiere_date %}<br><small>Versée le {{ location.caution_premiere_date|date:"d/m/Y" }}</small>{% endif %}</span>
                                             {% endif %}
-                                            {% if location.date_restitution_caution %}
-                                                <br><span class="text-danger">Restituée le {{ location.date_restitution_caution|date:"d/m/Y" }}</span>
-                                            {% endif %}
+                                        {% elif location.caution_total_verse > 0 %}
+                                            <span class="text-warning">{{ location.caution_total_verse }} € / {{ location.montant_caution }} €<br><small>Versements échelonnés</small></span>
                                         {% else %}
                                             <span class="text-danger">Non versée</span>
+                                        {% endif %}
+                                        {% if location.date_restitution_caution %}
+                                            <br><span class="text-danger">Restituée le {{ location.date_restitution_caution|date:"d/m/Y" }}</span>
                                         {% endif %}
                                     </td>
                                     <td>
