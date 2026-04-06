@@ -119,8 +119,12 @@
                             <td>
                                 {% if paiement.depot_garantie == "OK" %}
                                     <span class="badge" style="background-color: var(--success-color);">OK</span>
-                                {% elif paiement.depot_garantie == "Partiel" %}
-                                    <span class="badge" style="background-color: var(--warning-color);">Partiel</span>
+                                {% elif paiement.depot_garantie == "N/A" %}
+                                    <span class="badge" style="background-color: var(--secondary-color);">N/A</span>
+                                {% elif paiement.depot_garantie == "Non renseigné" %}
+                                    <span class="badge" style="background-color: var(--secondary-color);">Non renseigné</span>
+                                {% elif paiement.depot_garantie|slice:":7" == "Partiel" %}
+                                    <span class="badge" style="background-color: var(--warning-color);">{{ paiement.depot_garantie }}</span>
                                 {% else %}
                                     <span class="badge" style="background-color: var(--danger-color);">Manquant</span>
                                 {% endif %}
