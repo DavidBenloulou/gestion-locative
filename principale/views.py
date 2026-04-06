@@ -373,7 +373,7 @@ def generer_quittance(request, locataire_id):
 
     # Loyer et charges attendus
     loyer_attendu = bien.loyer_mensuel if bien and bien.loyer_mensuel else 0
-    charges_attendues = bien.montant_charges if bien and bien.montant_charges else 0
+    charges_attendues = bien.montant_charges if bien and bien.montant_charges is not None else 0
 
     # Créer le PDF
     buffer = io.BytesIO()
@@ -1126,12 +1126,12 @@ def etat_paiements(request):
             if not location:
                 continue
 
-            if location.montant_caution and location.date_versement_caution:
+            if location.montant_caution is not None and location.date_versement_caution:
                 depot_garantie_status = "OK"
-            elif location.montant_caution and not location.date_versement_caution:
+            elif location.montant_caution is not None and not location.date_versement_caution:
                 depot_garantie_status = "Manquant"
             else:
-                depot_garantie_status = "Manquant"
+                depot_garantie_status = "Non renseigné"
 
             if location.date_entree and location.date_entree <= dernier_jour_mois_courant:
                 paiements_loyer = Transaction.objects.filter(
@@ -1173,7 +1173,7 @@ def etat_paiements(request):
                 total_charges_paye = sum(p.montant for p in paiements_charges)
 
                 loyer_mensuel = bien.loyer_mensuel or 0
-                montant_charges = bien.montant_charges or 0
+                montant_charges = bien.montant_charges if bien.montant_charges is not None else 0
 
                 if location.date_entree and location.date_entree <= premier_jour_mois_courant:
                     if total_loyer_paye >= loyer_mensuel and loyer_mensuel > 0:
@@ -1188,7 +1188,7 @@ def etat_paiements(request):
                     else:
                         loyer_status = "N/A (arrivée récente)"
 
-                if montant_charges > 0:
+                if montant_charges is not None and montant_charges > 0:
                     if total_charges_paye >= montant_charges:
                         charges_status = "OK"
                     elif total_charges_paye > 0:
@@ -1203,7 +1203,7 @@ def etat_paiements(request):
                 loyer_status = "N/A (non présent)"
                 charges_status = "N/A (non présent)"
                 loyer_mensuel = bien.loyer_mensuel or 0
-                montant_charges = bien.montant_charges or 0
+                montant_charges = bien.montant_charges if bien.montant_charges is not None else 0
 
             mois_verifies = []
             for i in range(1, 4):
@@ -1261,7 +1261,7 @@ def etat_paiements(request):
                     else:
                         loyer_status_prec = "Manquant"
 
-                    if montant_charges > 0:
+                    if montant_charges is not None and montant_charges > 0:
                         if total_charges_prec >= montant_charges:
                             charges_status_prec = "OK"
                         elif total_charges_prec > 0:
@@ -2394,12 +2394,12 @@ def creances(request):
             # Vérifier la caution
             if not getattr(location, 'date_versement_caution', None):
                 montant_caution = None
-                if hasattr(location, 'montant_caution') and location.montant_caution:
+                if hasattr(location, 'montant_caution') and location.montant_caution is not None:
                     montant_caution = location.montant_caution
-                elif hasattr(bien, 'montant_caution') and bien.montant_caution:
+                elif hasattr(bien, 'montant_caution') and bien.montant_caution is not None:
                     montant_caution = bien.montant_caution
 
-                if montant_caution:
+                if montant_caution is not None:
                     montant_caution_decimal = decimal.Decimal(str(montant_caution))
                     paiements_problematiques.append({
                         'type': f'Caution ({bien.numero}-{bien.adresse})',
@@ -2413,7 +2413,7 @@ def creances(request):
             if location.date_entree:
                 date_debut_verification = max(location.date_entree, date_debut_logiciel)
                 loyer_mensuel = bien.loyer_mensuel or 0
-                montant_charges = bien.montant_charges or 0
+                montant_charges = bien.montant_charges if bien.montant_charges is not None else 0
 
                 date_courante = date_debut_verification
                 while date_courante <= date_aujourd_hui:
@@ -2446,7 +2446,7 @@ def creances(request):
                             'statut': statut
                         })
 
-                    if montant_charges > 0 and total_charges_paye < montant_charges:
+                    if montant_charges is not None and montant_charges > 0 and total_charges_paye < montant_charges:
                         statut = "Partiel" if total_charges_paye > 0 else "Non payé"
                         charges_decimal = decimal.Decimal(str(montant_charges))
                         paye_decimal = decimal.Decimal(str(total_charges_paye))
@@ -2474,7 +2474,7 @@ def creances(request):
                             if 'om' in t.type_transaction.nom.lower() and t.mois_concerne and t.mois_concerne.year == om.annee:
                                 total_om_paye += t.montant
 
-                if total_om_paye < om.montant_attendu:
+                if om.montant_attendu > 0 and total_om_paye < om.montant_attendu:
                     montant_om_decimal = decimal.Decimal(str(om.montant_attendu))
                     total_om_paye_decimal = decimal.Decimal(str(total_om_paye))
                     statut = "Partiel" if total_om_paye > 0 else "Non payé"
@@ -2683,7 +2683,7 @@ def apercu_impression_creances(request):
             # Vérifier la caution — uniquement si un montant est défini
             if not getattr(location, 'date_versement_caution', None):
                 montant_caution = None
-                if hasattr(location, 'montant_caution') and location.montant_caution:
+                if hasattr(location, 'montant_caution') and location.montant_caution is not None:
                     montant_caution = location.montant_caution
                 elif hasattr(bien, 'montant_caution') and bien.montant_caution:
                     montant_caution = bien.montant_caution
@@ -2714,7 +2714,7 @@ def apercu_impression_creances(request):
                 }
 
                 loyer_mensuel = bien.loyer_mensuel or 0
-                montant_charges = bien.montant_charges or 0
+                montant_charges = bien.montant_charges if bien.montant_charges is not None else 0
 
                 date_courante = date_debut_verification
                 while date_courante <= date_fin:
@@ -2770,7 +2770,7 @@ def apercu_impression_creances(request):
                             'id': creance_id
                         })
 
-                    if montant_charges > 0 and total_charges_paye < montant_charges:
+                    if montant_charges is not None and montant_charges > 0 and total_charges_paye < montant_charges:
                         creance_id = f"charges_{locataire.id}_{bien.id}_{mois_a_verifier}_{annee_a_verifier}"
                         commentaire = commentaires.get(creance_id, '')
 
@@ -4422,7 +4422,7 @@ def gestion_om(request):
                         bien_id = int(parts[2])
                         montant_str = value.strip().replace(',', '.')
 
-                        if montant_str == '' or montant_str == '0':
+                        if montant_str == '':
                             MontantOM.objects.filter(
                                 sci=request.current_sci,
                                 locataire_id=locataire_id,
@@ -4480,7 +4480,7 @@ def gestion_om(request):
 
             if montant_attendu is None:
                 statut = "Non défini"
-            elif montant_paye >= montant_attendu:
+            elif montant_attendu == 0 or montant_paye >= montant_attendu:
                 statut = "OK"
             elif montant_paye > 0:
                 statut = "Partiel"
@@ -4535,9 +4535,9 @@ def save_montant_om(request):
         bien_id = int(parts[2])
     except ValueError:
         return JsonResponse({'ok': False, 'error': 'Identifiants invalides'}, status=400)
-
+    
     try:
-        if value == '' or value == '0':
+        if value == '':
             MontantOM.objects.filter(
                 sci=request.current_sci,
                 locataire_id=locataire_id,
@@ -4555,5 +4555,4 @@ def save_montant_om(request):
             )
     except (ValueError, decimal.InvalidOperation):
         return JsonResponse({'ok': False, 'error': 'Montant invalide'}, status=400)
-
     return JsonResponse({'ok': True})

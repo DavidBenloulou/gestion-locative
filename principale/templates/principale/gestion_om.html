@@ -48,8 +48,8 @@
                                    data-field="{{ item.field_name }}"
                                    data-montant-paye="{{ item.montant_paye }}"
                                    class="form-control form-control-sm text-end om-input"
-                                   value="{% if item.montant_attendu %}{{ item.montant_attendu }}{% endif %}"
-                                   placeholder="0.00"
+                                   value="{% if item.montant_attendu is not None %}{{ item.montant_attendu }}{% endif %}"
+                                   placeholder=""
                                    style="width: 120px;">
                         </td>
                         <td class="text-end">{{ item.montant_paye|floatformat:2 }} €</td>
