@@ -2476,7 +2476,7 @@ def creances(request):
                     verse_decimal = decimal.Decimal(str(total_caution_verse))
                     statut = 'Partiel' if total_caution_verse > 0 else 'Non versée'
                     paiements_problematiques.append({
-                        'type': f'Caution ({bien.numero}-{bien.adresse})',
+                        'type': f'Caution ({bien.numero + "-" if bien.numero else ""}{bien.adresse})',
                         'mois': 'N/A',
                         'montant_attendu': montant_caution_decimal,
                         'montant_paye': verse_decimal,
@@ -2510,7 +2510,7 @@ def creances(request):
                         loyer_decimal = decimal.Decimal(str(loyer_mensuel))
                         paye_decimal = decimal.Decimal(str(total_loyer_paye))
                         paiements_problematiques.append({
-                            'type': f'Loyer ({bien.numero}-{bien.adresse})',
+                            'type': f'Loyer ({bien.numero + "-" if bien.numero else ""}{bien.adresse})',
                             'mois': f"{noms_mois_fr[mois_v]} {annee_v}",
                             'montant_attendu': loyer_decimal,
                             'montant_paye': paye_decimal,
@@ -2523,7 +2523,7 @@ def creances(request):
                         charges_decimal = decimal.Decimal(str(montant_charges))
                         paye_decimal = decimal.Decimal(str(total_charges_paye))
                         paiements_problematiques.append({
-                            'type': f'Charges ({bien.numero}-{bien.adresse})',
+                            'type': f'Charges ({bien.numero + "-" if bien.numero else ""}{bien.adresse})',
                             'mois': f"{noms_mois_fr[mois_v]} {annee_v}",
                             'montant_attendu': charges_decimal,
                             'montant_paye': paye_decimal,
@@ -2551,7 +2551,7 @@ def creances(request):
                     total_om_paye_decimal = decimal.Decimal(str(total_om_paye))
                     statut = "Partiel" if total_om_paye > 0 else "Non payé"
                     paiements_problematiques.append({
-                        'type': f'Ordures Ménagères ({bien.numero}-{bien.adresse})',
+                        'type': f'Ordures Ménagères ({bien.numero + "-" if bien.numero else ""}{bien.adresse})',
                         'mois': f"Année {om.annee}",
                         'montant_attendu': montant_om_decimal,
                         'montant_paye': total_om_paye_decimal,
@@ -2767,7 +2767,7 @@ def apercu_impression_creances(request):
                     liste_creances.append({
                         'locataire': f"{locataire.nom} {locataire.prenom}",
                         'bien': f"{bien.adresse}, {bien.code_postal} {bien.ville}",
-                        'type': f'Caution ({bien.numero}-{bien.adresse})',
+                        'type': f'Caution ({bien.numero + "-" if bien.numero else ""}{bien.adresse})',
                         'periode': 'N/A',
                         'montant_attendu': decimal.Decimal(str(montant_caution)),
                         'montant_paye': decimal.Decimal('0'),
@@ -2833,7 +2833,7 @@ def apercu_impression_creances(request):
                         liste_creances.append({
                             'locataire': f"{locataire.nom} {locataire.prenom}",
                             'bien': adresse_bien,
-                            'type': f'Loyer ({bien.numero}-{bien.adresse})',
+                            'type': f'Loyer ({bien.numero + "-" if bien.numero else ""}{bien.adresse})',
                             'periode': f"{noms_mois_fr[mois_a_verifier]} {annee_a_verifier}",
                             'montant_attendu': decimal.Decimal(str(loyer_mensuel)),
                             'montant_paye': decimal.Decimal(str(total_loyer_paye)),
@@ -2853,7 +2853,7 @@ def apercu_impression_creances(request):
                         liste_creances.append({
                             'locataire': f"{locataire.nom} {locataire.prenom}",
                             'bien': adresse_bien,
-                            'type': f'Charges ({bien.numero}-{bien.adresse})',
+                            'type': f'Charges ({bien.numero + "-" if bien.numero else ""}{bien.adresse})',
                             'periode': f"{noms_mois_fr[mois_a_verifier]} {annee_a_verifier}",
                             'montant_attendu': decimal.Decimal(str(montant_charges)),
                             'montant_paye': decimal.Decimal(str(total_charges_paye)),
@@ -2899,7 +2899,7 @@ def apercu_impression_creances(request):
                     liste_creances.append({
                         'locataire': f"{locataire.nom} {locataire.prenom}",
                         'bien': adresse_bien,
-                        'type': f'Ordures Ménagères ({bien.numero}-{bien.adresse})',
+                        'type': f'Ordures Ménagères ({bien.numero + "-" if bien.numero else ""}{bien.adresse})',
                         'periode': f"Année {om.annee}",
                         'montant_attendu': montant_om_decimal,
                         'montant_paye': total_om_paye_decimal,
