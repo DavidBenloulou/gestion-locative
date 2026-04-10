@@ -34,7 +34,7 @@
                                 {{ item.all_biens_str }}
                             </div>
                             <div class="col-md-4 text-end text-danger">
-                                <strong>Total dû : {{ item.total_manquant|floatformat:2 }} €</strong>
+                                <strong>Total dû : {{ item.total_manquant|euros }}</strong>
                             </div>
                         </div>
                     </button>
@@ -64,15 +64,15 @@
                                             {% if paiement.montant_attendu == 'À déterminer' %}
                                                 {{ paiement.montant_attendu }}
                                             {% else %}
-                                                {{ paiement.montant_attendu|floatformat:2 }} €
+                                                {{ paiement.montant_attendu|euros }}
                                             {% endif %}
                                         </td>
-                                        <td>{{ paiement.montant_paye|floatformat:2 }} €</td>
+                                        <td>{{ paiement.montant_paye|euros }}</td>
                                         <td class="text-danger fw-bold">
                                             {% if paiement.montant_manquant == 'À déterminer' %}
                                                 {{ paiement.montant_manquant }}
                                             {% else %}
-                                                {{ paiement.montant_manquant|floatformat:2 }} €
+                                                {{ paiement.montant_manquant|euros }}
                                             {% endif %}
                                         </td>
                                         <td>

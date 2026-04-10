@@ -151,10 +151,10 @@
                             {% if creance.montant_attendu == 'À déterminer' %}
                                 {{ creance.montant_attendu }}
                             {% else %}
-                                {{ creance.montant_attendu|floatformat:2 }} €
+                                {{ creance.montant_attendu|euros }}
                             {% endif %}
                         </td>
-                        <td class="text-end">{{ creance.montant_paye|floatformat:2 }} €</td>
+                        <td class="text-end">{{ creance.montant_paye|euros }}</td>
                         <td>
                             <input 
                                 type="text" 
@@ -169,8 +169,8 @@
                     <!-- Ligne de total -->
                     <tr class="table-secondary fw-bold">
                         <td colspan="4" class="text-end">TOTAL</td>
-                        <td class="text-end">{{ total_attendu|floatformat:2 }} €</td>
-                        <td class="text-end">{{ total_paye|floatformat:2 }} €</td>
+                        <td class="text-end">{{ total_attendu|euros }}</td>
+                        <td class="text-end">{{ total_paye|euros }}</td>
                     </tr>
                 </tbody>
             </table>

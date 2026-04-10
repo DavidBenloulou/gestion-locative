@@ -29,7 +29,7 @@
             <div class="card-body text-center">
                 <i class="fas fa-arrow-up card-icon"></i>
                 <h5 class="card-title">Recettes annuelles</h5>
-                <h2 class="card-value">{{ recettes_annuelles|floatformat:2 }} €</h2>
+                <h2 class="card-value">{{ recettes_annuelles|euros }}</h2>
             </div>
         </div>
     </div>
@@ -38,7 +38,7 @@
             <div class="card-body text-center">
                 <i class="fas fa-arrow-down card-icon"></i>
                 <h5 class="card-title">Dépenses annuelles</h5>
-                <h2 class="card-value">{{ depenses_annuelles|floatformat:2 }} €</h2>
+                <h2 class="card-value">{{ depenses_annuelles|euros }}</h2>
             </div>
         </div>
     </div>
@@ -52,7 +52,7 @@
             </div>
             <div class="card-body text-center">
                 <h3 class="{% if bilan >= 0 %}text-success{% else %}text-danger{% endif %}">
-                    {{ bilan|floatformat:2 }} €
+                    {{ bilan|euros }}
                 </h3>
             </div>
         </div>

@@ -57,26 +57,26 @@
                     {% for donnee in donnees_mensuelles %}
                     <tr {% if donnee.mois == 'Solde 1er Janvier' or 'Total' in donnee.mois %}style="background-color: var(--primary-very-light); font-weight: bold;"{% endif %}>
                         <td class="text-center">{{ donnee.mois }}</td>
-                        <td class="text-end">{% if donnee.recettes != None %}<span class="amount">{{ donnee.recettes|floatformat:2 }}&nbsp;€</span>{% endif %}</td>
-                        <td class="text-end">{% if donnee.depenses != None %}<span class="amount">{{ donnee.depenses|floatformat:2 }}&nbsp;€</span>{% endif %}</td>
+                        <td class="text-end">{% if donnee.recettes != None %}<span class="amount">{{ donnee.recettes|euros }}</span>{% endif %}</td>
+                        <td class="text-end">{% if donnee.depenses != None %}<span class="amount">{{ donnee.depenses|euros }}</span>{% endif %}</td>
                         <td class="text-end">
                             {% if donnee.solde != None %}
                                 {% if donnee.solde >= 0 %}
-                                    <span class="amount positive-amount">{{ donnee.solde|floatformat:2 }}&nbsp;€</span>
+                                    <span class="amount positive-amount">{{ donnee.solde|euros }}</span>
                                 {% else %}
-                                    <span class="amount negative-amount">{{ donnee.solde|floatformat:2 }}&nbsp;€</span>
+                                    <span class="amount negative-amount">{{ donnee.solde|euros }}</span>
                                 {% endif %}
                             {% endif %}
                         </td>
-                        <td class="text-end">{% if donnee.loyers != None %}<span class="amount">{{ donnee.loyers|floatformat:2}}&nbsp;€</span>{% endif %}</td>
-                        <td class="text-end">{% if donnee.charges_om != None %}<span class="amount">{{ donnee.charges_om|floatformat:2}}&nbsp;€</span>{% endif %}</td>
-                        <td class="text-end">{% if donnee.apport_cc != None %}<span class="amount">{{ donnee.apport_cc|floatformat:2}}&nbsp;€</span>{% endif %}</td>
-                        <td class="text-end">{% if donnee.divers_recettes != None %}<span class="amount">{{ donnee.divers_recettes|floatformat:2}}&nbsp;€</span>{% endif %}</td>
-                        <td class="text-end">{% if donnee.depenses_locataires != None %}<span class="amount">{{ donnee.depenses_locataires|floatformat:2}}&nbsp;€</span>{% endif %}</td>
-                        <td class="text-end">{% if donnee.travaux != None %}<span class="amount">{{ donnee.travaux|floatformat:2}}&nbsp;€</span>{% endif %}</td>
-                        <td class="text-end">{% if donnee.remboursement_cc != None %}<span class="amount">{{ donnee.remboursement_cc|floatformat:2}}&nbsp;€</span>{% endif %}</td>
-                        <td class="text-end">{% if donnee.frais_impots != None %}<span class="amount">{{ donnee.frais_impots|floatformat:2}}&nbsp;€</span>{% endif %}</td>
-                        <td class="text-end">{% if donnee.autres_depenses != None %}<span class="amount">{{ donnee.autres_depenses|floatformat:2}}&nbsp;€</span>{% endif %}</td>
+                        <td class="text-end">{% if donnee.loyers != None %}<span class="amount">{{ donnee.loyers|euros }}</span>{% endif %}</td>
+                        <td class="text-end">{% if donnee.charges_om != None %}<span class="amount">{{ donnee.charges_om|euros }}</span>{% endif %}</td>
+                        <td class="text-end">{% if donnee.apport_cc != None %}<span class="amount">{{ donnee.apport_cc|euros }}</span>{% endif %}</td>
+                        <td class="text-end">{% if donnee.divers_recettes != None %}<span class="amount">{{ donnee.divers_recettes|euros }}</span>{% endif %}</td>
+                        <td class="text-end">{% if donnee.depenses_locataires != None %}<span class="amount">{{ donnee.depenses_locataires|euros }}</span>{% endif %}</td>
+                        <td class="text-end">{% if donnee.travaux != None %}<span class="amount">{{ donnee.travaux|euros }}</span>{% endif %}</td>
+                        <td class="text-end">{% if donnee.remboursement_cc != None %}<span class="amount">{{ donnee.remboursement_cc|euros }}</span>{% endif %}</td>
+                        <td class="text-end">{% if donnee.frais_impots != None %}<span class="amount">{{ donnee.frais_impots|euros }}</span>{% endif %}</td>
+                        <td class="text-end">{% if donnee.autres_depenses != None %}<span class="amount">{{ donnee.autres_depenses|euros }}</span>{% endif %}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -93,10 +93,10 @@
             <div class="card-body">
                 <p>Ce tableau présente un suivi détaillé des finances de l'année {{ annee_selectionnee }}.</p>
                 <ul>
-                    <li><strong>Compte courant d'associé au 1er janvier:</strong> {{ cc_initial|floatformat:2}} €</li>
-                    <li><strong>Compte courant d'associé actuel:</strong> {{ cc_final|floatformat:2}} €</li>
-                    <li><strong>CRL :</strong> {{ crl_montant|floatformat:2}} € </li>
-                    <li><strong>Total des cautions:</strong> {{ cautions_total|floatformat:2}} €</li>
+                    <li><strong>Compte courant d'associé au 1er janvier:</strong> {{ cc_initial|euros }}</li>
+                    <li><strong>Compte courant d'associé actuel:</strong> {{ cc_final|euros }}</li>
+                    <li><strong>CRL :</strong> {{ crl_montant|euros }} </li>
+                    <li><strong>Total des cautions:</strong> {{ cautions_total|euros }}</li>
                 </ul>
             </div>
         </div>

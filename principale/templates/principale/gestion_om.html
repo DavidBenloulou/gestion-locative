@@ -52,14 +52,14 @@
                                    placeholder=""
                                    style="width: 120px;">
                         </td>
-                        <td class="text-end">{{ item.montant_paye|floatformat:2 }} €</td>
+                        <td class="text-end">{{ item.montant_paye|euros }}</td>
                         <td class="text-end om-reste">
                             {% if item.reste_a_payer != None %}
                                 {% if item.reste_a_payer == 0 %}
                                     <span class="text-success">0,00 €</span>
                                 {% else %}
                                     <span class="text-danger">
-                                        {{ item.reste_a_payer|floatformat:2 }} €
+                                        {{ item.reste_a_payer|euros }}
                                     </span>
                                 {% endif %}
                             {% else %}
