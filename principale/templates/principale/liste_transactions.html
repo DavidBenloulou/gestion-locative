@@ -135,7 +135,7 @@
             <div class="card-body text-center">
                 <i class="fas fa-arrow-up card-icon"></i>
                 <h5 class="card-title">Recettes</h5>
-                <h2 class="card-value">{{ recettes|floatformat:2 }} €</h2>
+                <h2 class="card-value">{{ recettes|euros }}</h2>
             </div>
         </div>
     </div>
@@ -144,7 +144,7 @@
             <div class="card-body text-center">
                 <i class="fas fa-arrow-down card-icon"></i>
                 <h5 class="card-title">Dépenses</h5>
-                <h2 class="card-value">{{ depenses|floatformat:2 }} €</h2>
+                <h2 class="card-value">{{ depenses|euros }}</h2>
             </div>
         </div>
     </div>
@@ -153,7 +153,7 @@
             <div class="card-body text-center">
                 <i class="fas fa-balance-scale card-icon"></i>
                 <h5 class="card-title">Bilan</h5>
-                <h2 class="card-value">{{ bilan|floatformat:2 }} €</h2>
+                <h2 class="card-value">{{ bilan|euros }}</h2>
             </div>
         </div>
     </div>
@@ -247,12 +247,12 @@
     <ul class="pagination justify-content-center mt-4">
         {% if transactions.has_previous %}
         <li class="page-item">
-            <a class="page-link" href="?page=1{% if query_params %}&{{ query_params }}{% endif %}" aria-label="Première page">
+            <a class="page-link" href="?page=1&{{ request.GET.urlencode }}" aria-label="Première page">
                 <span aria-hidden="true">&laquo;&laquo;</span>
             </a>
         </li>
         <li class="page-item">
-            <a class="page-link" href="?page={{ transactions.previous_page_number }}{% if query_params %}&{{ query_params }}{% endif %}" aria-label="Page précédente">
+            <a class="page-link" href="?page={{ transactions.previous_page_number }}&{{ request.GET.urlencode }}" aria-label="Page précédente">
                 <span aria-hidden="true">&laquo;</span>
             </a>
         </li>
@@ -265,18 +265,18 @@
             {% if transactions.number == num %}
             <li class="page-item active" aria-current="page"><span class="page-link">{{ num }}</span></li>
             {% elif num > transactions.number|add:'-3' and num < transactions.number|add:'3' %}
-            <li class="page-item"><a class="page-link" href="?page={{ num }}{% if query_params %}&{{ query_params }}{% endif %}">{{ num }}</a></li>
+            <li class="page-item"><a class="page-link" href="?page={{ num }}&{{ request.GET.urlencode }}">{{ num }}</a></li>
             {% endif %}
         {% endfor %}
 
         {% if transactions.has_next %}
         <li class="page-item">
-            <a class="page-link" href="?page={{ transactions.next_page_number }}{% if query_params %}&{{ query_params }}{% endif %}" aria-label="Page suivante">
+            <a class="page-link" href="?page={{ transactions.next_page_number }}&{{ request.GET.urlencode }}" aria-label="Page suivante">
                 <span aria-hidden="true">&raquo;</span>
             </a>
         </li>
         <li class="page-item">
-            <a class="page-link" href="?page={{ transactions.paginator.num_pages }}{% if query_params %}&{{ query_params }}{% endif %}" aria-label="Dernière page">
+            <a class="page-link" href="?page={{ transactions.paginator.num_pages }}&{{ request.GET.urlencode }}" aria-label="Dernière page">
                 <span aria-hidden="true">&raquo;&raquo;</span>
             </a>
         </li>
@@ -299,12 +299,14 @@
     document.addEventListener('DOMContentLoaded', function() {
         const urlParams = new URLSearchParams(window.location.search);
 
+        // Si des filtres sont appliqués, ouvrir le panneau
         if (urlParams.get('categorie') || urlParams.get('type_transaction') ||
             urlParams.get('locataire') || urlParams.get('date_debut') ||
             urlParams.get('date_fin') || urlParams.get('sci')) {
             document.getElementById('collapseFilterForm').classList.add('show');
         }
 
+        // Filtrer les types en fonction de la catégorie sélectionnée
         const categorieSelect = document.getElementById('filtre_categorie');
         const typeSelect = document.getElementById('filtre_type');
 
@@ -320,11 +322,13 @@
                     option.style.display = 'none';
                 }
             });
+            // Réinitialiser le type si le type sélectionné n'est plus visible
             if (typeSelect.selectedOptions[0] && typeSelect.selectedOptions[0].style.display === 'none') {
                 typeSelect.value = '';
             }
         });
 
+        // Déclencher le filtre initial si une catégorie est déjà sélectionnée
         if (categorieSelect.value) {
             categorieSelect.dispatchEvent(new Event('change'));
         }

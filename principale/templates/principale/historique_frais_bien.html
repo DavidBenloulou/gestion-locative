@@ -41,7 +41,7 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5>Frais pour : {{ bien_selectionne.get_type_bien_display }} - {% if bien_selectionne.numero %}{{ bien_selectionne.numero }} - {% endif %}{{ bien_selectionne.adresse }}</h5>
-                <span class="badge bg-danger fs-6">Total : {{ total_frais|floatformat:2 }} €</span>
+                <span class="badge bg-danger fs-6">Total : {{ total_frais|euros }}</span>
             </div>
             <div class="card-body">
                 {% if transactions %}
@@ -61,7 +61,7 @@
                             <tr>
                                 <td>{{ transaction.date|date:"d/m/Y" }}</td>
                                 <td>{{ transaction.type_transaction.nom }}</td>
-                                <td class="text-end amount negative-amount">{{ transaction.montant|floatformat:2 }} €</td>
+                                <td class="text-end amount negative-amount">{{ transaction.montant|euros }}</td>
                                 <td class="text-column">{{ transaction.description|default:"-" }}</td>
                                 <td class="actions-column">
                                     <a href="{% url 'detail_transaction' transaction.id %}" class="btn btn-sm btn-info" title="Détails">

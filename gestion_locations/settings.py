@@ -69,6 +69,7 @@ TEMPLATES = [
                 'principale.context_processors.sci_info',
                 'principale.context_processors.sci_context',
             ],
+            'builtins': ['principale.templatetags.montant_filters'],
         },
     },
 ]
