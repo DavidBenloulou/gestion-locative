@@ -114,7 +114,7 @@
             <input type="hidden" name="sci_submitted" value="1">
 
             <div class="d-flex justify-content-between mt-4">
-                <a href="javascript:history.back()" class="btn btn-secondary">
+                <a href="{% url 'liste_transactions' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" class="btn btn-secondary">
                     <i class="fas fa-arrow-left"></i> Retour
                 </a>
                 <button type="submit" class="btn btn-primary">

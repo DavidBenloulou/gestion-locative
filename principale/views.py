@@ -900,7 +900,8 @@ def ajouter_transaction(request):
                             messages.info(request, "La date de restitution de caution a été automatiquement mise à jour.")
 
                 messages.success(request, "La transaction a été ajoutée avec succès.")
-                return redirect('liste_transactions')
+                querystring = request.GET.urlencode()
+                return redirect(f"{reverse('liste_transactions')}?{querystring}" if querystring else 'liste_transactions')
 
             except Exception as e:
                 import traceback
@@ -1001,7 +1002,8 @@ def modifier_transaction(request, transaction_id):
                             messages.info(request, "La date de restitution de caution a été automatiquement mise à jour.")
 
                 messages.success(request, "La transaction a été modifiée avec succès.")
-                return redirect('liste_transactions')
+                querystring = request.GET.urlencode()
+                return redirect(f"{reverse('liste_transactions')}?{querystring}" if querystring else 'liste_transactions')
 
             except Exception as e:
                 import traceback
@@ -1097,7 +1099,8 @@ def supprimer_transaction(request, transaction_id):
         elif referer and 'detail_bien' in referer and transaction.bien:
             return redirect('detail_bien', bien_id=transaction.bien.id)
         else:
-            return redirect('liste_transactions')
+            querystring = request.GET.urlencode()
+            return redirect(f"{reverse('liste_transactions')}?{querystring}" if querystring else 'liste_transactions')
 
     return render(request, 'principale/confirmer_suppression.html', {
         'objet': transaction,

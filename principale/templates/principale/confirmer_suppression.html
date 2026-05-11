@@ -21,11 +21,11 @@
             <div class="d-flex justify-content-center mt-4">
                 {% if url_retour %}
                     {% if id_retour %}
-                        <a href="{% url url_retour id_retour %}" class="btn btn-secondary me-2">
+                        <a href="{% url url_retour id_retour %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" class="btn btn-secondary me-2">
                             <i class="fas fa-times"></i> Annuler
                         </a>
                     {% else %}
-                        <a href="{% url url_retour %}" class="btn btn-secondary me-2">
+                        <a href="{% url url_retour %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" class="btn btn-secondary me-2">
                             <i class="fas fa-times"></i> Annuler
                         </a>
                     {% endif %}
