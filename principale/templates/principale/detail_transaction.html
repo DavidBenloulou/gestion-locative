@@ -90,7 +90,7 @@
 </div>
 
 <div class="mt-4">
-    <a href="{% url 'liste_transactions' %}" class="btn btn-secondary">
+    <a href="{% url 'liste_transactions' %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" class="btn btn-secondary">
         <i class="fas fa-arrow-left"></i> Retour à la liste des transactions
     </a>
 </div>
