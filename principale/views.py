@@ -2685,7 +2685,7 @@ def supprimer_location_bien(request, location_id):
         'objet': f"l'association du locataire {locataire.nom} {locataire.prenom} avec le bien {location.bien}",
         'type_objet': 'location',
         'url_retour': 'detail_locataire',
-        'url_retour_id': locataire.id
+        'id_retour': locataire.id
     })
 
 def get_biens_locataire(request, locataire_id):
