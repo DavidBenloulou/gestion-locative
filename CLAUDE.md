@@ -19,42 +19,82 @@ Je suis **novice en développement**. Je n'ai pas de connaissances préalables e
 
 ### Particularités Windows / Git Bash
 - Les chemins avec espaces doivent être entre guillemets : `"Appli gestion SCI"`
-- Le copier-coller multiligne dans Git Bash peut casser (ajout de caractères parasites `~[200~`, interprétation ligne par ligne). **Préférer les commandes sur une seule ligne** quand on m'en propose à exécuter.
+- ⚠️ Le copier-coller multiligne dans Git Bash casse souvent (caractères parasites `~[200~`, interprétation ligne par ligne). **Toujours préférer des commandes sur une seule ligne**. Pour créer un fichier multiligne, utiliser `echo 'contenu' > fichier` plutôt que `cat > fichier << 'EOF' … EOF`.
 - Pour arrêter le serveur Django : `Ctrl+C` ou fermer la fenêtre
 - Si Vim s'ouvre (éditeur de merge) : taper `:wq` puis Entrée pour sauvegarder et quitter
+- Pour les commits Git : **toujours utiliser `git commit -m "message"` en ligne**, jamais `git commit` tout court (qui ouvre Vim)
 
 ---
 
 ## 2. Comment je veux que tu travailles avec moi
 
-### Mode Claude Code
-- **Mode plan par défaut** (configuré dans `.claude/settings.json`) — tu ne peux rien modifier sans m'avoir présenté un plan d'abord
-- **Validation par bloc cohérent** : présente-moi un plan détaillé complet une fois, puis pendant l'exécution, valide bloc par bloc (ex. "OK pour modifier `views.py` ?" puis "OK pour modifier le template ?" puis "OK pour le commit ?"). Ne demande pas confirmation pour chaque petite ligne, mais regroupe par unité logique.
+### 2.1 — Règles communes (valables en LOCAL ET en CLOUD)
 
-### Commandes auto-autorisées (dans `.claude/settings.json`)
-Tu peux lancer **sans demander** :
-- Lecture/observation : `git status`, `git diff`, `git log`, `git branch`, `git show`, `ls`, `cat`, `pwd`, `head`, `tail`, `grep`
-- Serveur local : `python manage.py runserver`
-
-Tu **dois demander** pour :
-- Toute modification de fichier (Edit, Write)
-- Tout `git add`, `git commit`, `git push`, `git checkout`, `git merge`, `git pull`
-- Toute commande Django qui modifie l'état : `migrate`, `makemigrations`, `shell`, `dbshell`, `loaddata`, `dumpdata`
-- `pip install`, `npm install`, etc.
-- Toute commande qui n'est pas dans la liste auto-autorisée
-
-### Gestion des commits Git
-- Tu **proposes** le message de commit
-- Je valide le message
-- Tu exécutes `git add`, `git commit`, `git push` (avec ma validation par bloc)
-- **Toujours** faire `git pull origin main` avant un merge sur `main` (le backup automatique de 2h peut avoir modifié `main`)
-
-### Style de dialogue
+- **Plan détaillé d'abord** : avant toute modification, présente un plan structuré (fichiers concernés, modifications prévues, ordre des étapes) et attends mon accord
+- **Validation par bloc cohérent** : ne demande pas confirmation à chaque ligne, mais regroupe par unité logique (un fichier modifié = un point de validation)
+- **JAMAIS de merge automatique sur `develop` ou `main`** : tu travailles toujours sur une branche dédiée nommée `claude/<description-courte>`. Le merge vers `develop` et `main` se fait MANUELLEMENT par moi, en Git Bash, après test en local
+- **JAMAIS de Pull Request automatique** : si je veux une PR, je la créerai moi-même
+- **Le test en local par moi est obligatoire** : avant tout merge vers `main`, je dois avoir testé sur `http://127.0.0.1:8000` avec ma vraie base de données. Tu ne peux pas tester à ma place.
 - **Explique brièvement** ce que fait chaque commande avant de la lancer
 - **Analyse les erreurs immédiatement** et propose une correction claire
-- **Demande de tester dans le navigateur** avant de proposer un commit/déploiement
 - **Rassure en cas d'erreur** — les erreurs sont normales et toujours récupérables
+
+### 2.2 — Spécificités du MODE LOCAL (Git Bash + Claude Code CLI)
+
+- Le mode plan strict est configuré dans `.claude/settings.json` (`defaultMode: plan`). Tu ne peux **rien modifier** sans accord explicite.
+- Commandes auto-autorisées (sans demande) : `git status/diff/log/branch/show`, `ls`, `cat`, `pwd`, `head`, `tail`, `grep`, `python manage.py runserver`
+- Toute autre commande (Edit, Write, `git add/commit/push/checkout/merge/pull`, `migrate`, `makemigrations`, `pip install`, etc.) nécessite ma validation explicite
+- Les modifications affectent directement mes fichiers Windows — je peux tester immédiatement sur `http://127.0.0.1:8000`
+
+### 2.3 — Spécificités du MODE CLOUD (claude.ai/code)
+
+⚠️ **Le mode cloud se comporte différemment** du mode local. Les règles de `.claude/settings.json` ne sont **pas appliquées strictement** : Claude Code peut prendre plus d'initiatives une fois le plan validé. D'où des règles renforcées :
+
+- **Toujours activer "Mode planification"** dans l'interface AVANT d'envoyer le premier prompt (bouton en bas de la zone de saisie)
+- **Toujours formuler un prompt verrouillé** au démarrage qui interdit explicitement :
+  - Tout merge dans `develop` ou `main`
+  - Toute création automatique de Pull Request
+  - Tout push sur `develop` ou `main` directement
+  - Toute modification au-delà de la tâche décrite
+- **Toujours travailler sur une branche dédiée** : `claude/<description>` créée depuis `develop`
+- **Le cloud ne peut PAS tester avec mes vraies données** (pas d'accès à ma base SQLite locale, ni à mon serveur). Donc le test final est TOUJOURS de mon côté, après `git pull` en local.
+- **Si je modifie la configuration GitHub** (app GitHub, permissions, tokens) en cours de route : **créer une NOUVELLE session**. Les sessions existantes ne récupèrent pas les nouvelles permissions.
+- **Le push sur `main` est bloqué par protection de branche GitHub** — c'est volontaire et sécurisant, ne pas chercher à contourner.
+
+### Modèle de prompt cloud verrouillé (à copier au démarrage)
+
+```
+Contexte : projet gestion-locative, branche develop.
+
+Tâche : <description précise>
+
+Règles strictes :
+1. Lis le code pour confirmer ton diagnostic avant toute proposition
+2. Présente-moi un plan détaillé (fichiers, diffs, étapes)
+3. ATTENDS MA VALIDATION EXPLICITE avant toute modification
+4. Crée une branche dédiée nommée claude/<nom-court> depuis develop
+5. Effectue les modifications, commit, push sur cette branche UNIQUEMENT
+6. NE merge PAS dans develop ou main
+7. NE crée PAS de Pull Request automatiquement
+8. Arrête-toi après le push et résume ce que tu as fait
+
+Contraintes du projet : voir CLAUDE.md (notamment is not None, filtre |euros, conventions cautions)
+```
+
+### 2.4 — Gestion des commits Git
+
+- Tu **proposes** le message de commit (format clair, en français)
+- Je valide le message
+- Tu exécutes `git add`, `git commit -m "..."`, `git push` (avec validation par bloc)
+- **Toujours** faire `git pull origin main` avant un merge sur `main` (le backup automatique de 2h peut avoir modifié `main`)
+- Le message de commit doit décrire **ce qui change**, pas **ce qu'on a fait techniquement** : "Fix: conserver le bien pour les transactions travaux liées à la SCI" ✓ plutôt que "Modifie forms.py et views.py" ✗
+
+### 2.5 — Style de dialogue
+
+- **Demande de tester dans le navigateur** avant de proposer un commit/déploiement
 - **Ne suppose pas** qu'une étape est faite — demande confirmation aux étapes importantes
+- Pas de jargon non expliqué
+- Si tu détectes que je suis sur la mauvaise branche, dans un état inattendu, ou que je m'apprête à faire une bêtise, **arrête-moi avant que j'exécute**
 
 ---
 
@@ -135,30 +175,36 @@ cd ~/Gestion\ locative/gestion_locations
 ### Sauvegarde automatique
 Un script bash quotidien à **2h00** sur PythonAnywhere exporte les données en JSON et pousse sur GitHub (`backups/latest_backup.json` sur la branche `main`). C'est pour ça qu'il faut **toujours `git pull origin main` avant de merger develop dans main**.
 
+### Authentification GitHub
+- **App GitHub officielle "Claude"** installée sur le dépôt `gestion-locative` uniquement (permissions read+write) — c'est ce qui permet à Claude Code en cloud de pousser des branches
+- **PAT `Sauvegarde DB-SCI`** : token sans expiration utilisé par le script de backup PythonAnywhere — **ne pas supprimer**
+- Tous les autres PAT historiques ont été supprimés (mai 2026)
+
 ---
 
 ## 7. Procédure de déploiement complète
 
-### Étape 1 — Tester en local (branche `develop`)
+### Étape 1 — Tester en local (branche `develop` ou `claude/<nom>`)
 ```bash
 python manage.py runserver
 # Tester sur http://127.0.0.1:8000
 # Ctrl+C pour arrêter
 ```
 
-### Étape 2 — Committer et pousser sur `develop`
+### Étape 2 — Si travail sur une branche `claude/<nom>` : merger dans `develop`
 ```bash
-git add .
-git commit -m "Description du changement"
-git push
+git checkout develop
+git pull origin develop
+git merge claude/<nom>
+git push origin develop
 ```
 
 ### Étape 3 — Merger `develop` sur `main`
 ```bash
 git checkout main
-git pull origin main      # ⚠️ NE PAS OUBLIER
+git pull origin main      # ⚠️ NE PAS OUBLIER (backup auto de nuit)
 git merge develop
-git push
+git push origin main
 git checkout develop
 ```
 
@@ -194,6 +240,8 @@ git pull origin main
 git push
 ```
 
+**Si un merge est en cours et qu'il faut le finaliser** : `git status` indique "All conflicts fixed but you are still merging". Il suffit alors de faire `git commit -m "Merge ..."` pour clôturer.
+
 ---
 
 ## 9. Modèles de données principaux
@@ -226,6 +274,11 @@ CommentaireCreance     # Commentaires sur les créances
 - `LocationBien.date_versement_caution` = mise à jour automatique à la saisie d'une transaction caution
 - `LocationBien.date_restitution_caution` = mise à jour automatique à la saisie d'un remboursement
 - ⚠️ Les transactions de caution n'ont **pas** de `mois_concerne` — les requêtes de caution ne doivent pas filtrer par `mois_concerne`
+
+### Transactions Travaux + SCI (bug corrigé mai 2026)
+- Une transaction de type "travaux" cochée "Transaction liée à la SCI" peut avoir un bien associé (par exemple : facture de chaudière payée par la SCI mais affectée à un appartement précis)
+- ⚠️ Dans `forms.py` (méthode `save()` de `TransactionForm`) et `views.py` (`ajouter_transaction`, `modifier_transaction`), bien tester `'travaux' in type_transaction.nom.lower()` **avant** de mettre `bien = None` quand `sci_transaction=True`
+- L'affichage de la case "Transaction SCI" à la réouverture se base sur `locataire is None AND bien is None` → cas particulier à gérer pour les travaux SCI avec bien
 
 ### Bilan comptable
 - Démarre au **01/01/2025**
@@ -340,6 +393,8 @@ Déclaration dans `gestion_locations/settings.py` :
 - **Cautions sans `mois_concerne`** : requêtes de caution séparées sans filtre date
 - **PythonAnywhere compte gratuit** : renouveler régulièrement l'appli Web et la tâche planifiée
 - **Comptabilité démarre au 01/01/2025** : transactions antérieures = migrations historiques
+- **Mode plan en cloud ≠ Mode plan en local** : voir section 2.3 pour les règles renforcées en cloud
+- **Une session cloud démarrée avant un changement de config GitHub ne profite pas des nouvelles permissions** : créer une nouvelle session
 
 ---
 
@@ -362,11 +417,61 @@ python manage.py shell
 # Voir l'historique récent
 git log --oneline -10
 
+# Voir l'historique de toutes les branches
+git log --oneline --all -10
+
 # Voir ce qui a changé
 git status
 git diff
+
+# Voir les branches (locales + distantes)
+git branch -a
+
+# Récupérer les infos GitHub sans modifier le local
+git fetch origin
+
+# Supprimer une branche locale
+git branch -d nom-de-branche
+
+# Supprimer une branche distante (sur GitHub)
+git push origin --delete nom-de-branche
 ```
 
 ---
 
-*Dernière mise à jour : mai 2026*
+## 14. Pièges connus et leçons des sessions précédentes
+
+### Sessions Claude Code Cloud — comportements à anticiper
+
+**Une session cloud peut "reprendre" toute seule** après que tu l'as quittée. Ces "reprises" consomment du quota. Pour vraiment arrêter une session sans la supprimer : refuser tout plan en cours via le bouton "Refuser", puis quitter.
+
+**Une session cloud ne sait pas qu'on a installé une nouvelle app GitHub** : elle continue avec ses credentials initiaux. Toujours créer une **nouvelle session** après modification des permissions GitHub.
+
+**Le sandbox cloud est éphémère mais persiste plusieurs heures** : les commits non poussés peuvent rester dans le sandbox jusqu'au timeout, mais ils sont **invisibles** depuis GitHub et depuis le PC local. Ne jamais compter sur le sandbox pour conserver du travail.
+
+**Claude Code en cloud peut être tenté de merger sur `develop` ou `main` directement** quand il ne peut pas créer de PR. Le prompt verrouillé de la section 2.3 évite ça en l'interdisant explicitement.
+
+**La protection de branche `main` sur GitHub bloque le push cloud sur `main`** : c'est une sécurité voulue, pas un bug. Le push sur `main` doit toujours se faire depuis Git Bash local.
+
+### Git Bash sur Windows — pièges courants
+
+**Le copier-coller multiligne casse souvent** : les caractères `~[200~` apparaissent, ou les lignes sont interprétées comme des commandes séparées. Solution : commandes sur une seule ligne, ou créer le fichier dans VS Code.
+
+**Vim s'ouvre tout seul** pour les messages de merge ou de commit si on oublie `-m "..."`. Solution : `:wq` pour sauver et quitter, ou toujours passer `-m "message"` explicitement.
+
+**L'état `MERGING` non finalisé** : après un `git merge` interrompu, le prompt affiche `(branche|MERGING)`. Pour finaliser : `git status` pour voir les conflits éventuels, résoudre, puis `git commit -m "Merge ..."`.
+
+### Tokens GitHub
+
+**Les Personal Access Tokens (PAT) expirent** : prévoir un nettoyage régulier dans `https://github.com/settings/tokens`. Le token `Sauvegarde DB-SCI` est sans expiration et sert au backup automatique — ne jamais le supprimer.
+
+**Pour Claude Code, on n'utilise PAS de PAT** : c'est l'app GitHub officielle "Claude" qui gère l'authentification via OAuth. Plus stable, plus sûr.
+
+### Historique notable
+
+- **Mai 2026 (jour 1)** : installation et configuration de Claude Code en local + cloud. Découverte des différences de comportement entre les deux modes.
+- **Mai 2026 (jour 2)** : correction du bug Travaux+SCI (3 endroits dans `forms.py` et `views.py`). Première session cloud réussie de bout en bout avec Mode planification activé et prompt verrouillé.
+
+---
+
+*Dernière mise à jour : mai 2026 — après correction du bug Travaux+SCI et première utilisation réussie de Claude Code cloud*
