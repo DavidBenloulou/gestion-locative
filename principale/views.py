@@ -844,7 +844,8 @@ def ajouter_transaction(request):
 
                 if is_sci_transaction:
                     transaction.locataire = None
-                    transaction.bien = None
+                    if 'travaux' not in type_transaction_nom:
+                        transaction.bien = None
                 elif 'travaux' in type_transaction_nom:
                     # Le bien et le locataire sont déjà définis par le formulaire
                     pass
@@ -949,7 +950,8 @@ def modifier_transaction(request, transaction_id):
 
                 if cleaned_data.get('sci_transaction'):
                     transaction.locataire = None
-                    transaction.bien = None
+                    if 'travaux' not in type_transaction_nom:
+                        transaction.bien = None
                 elif 'travaux' in type_transaction_nom:
                     # Le bien est déjà défini par le formulaire
                     pass

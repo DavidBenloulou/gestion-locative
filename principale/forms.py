@@ -209,17 +209,19 @@ class TransactionForm(forms.ModelForm):
     def save(self, commit=True):
         instance = super().save(commit=False)
 
-        # Logique pour transaction SCI
+        type_transaction = self.cleaned_data.get('type_transaction')
+        is_travaux = type_transaction and 'travaux' in type_transaction.nom.lower()
+
         if self.cleaned_data.get('sci_transaction'):
-            instance.bien = None
             instance.locataire = None
+            if not is_travaux:
+                instance.bien = None
+            else:
+                instance.bien = self.cleaned_data.get('bien')
         else:
-            # Pour les transactions de travaux
-            type_transaction = self.cleaned_data.get('type_transaction')
-            if type_transaction and 'travaux' in type_transaction.nom.lower():
+            if is_travaux:
                 instance.bien = self.cleaned_data.get('bien')
                 instance.locataire = self.cleaned_data.get('locataire')
-            # Pour les autres transactions avec locataire
             elif instance.locataire:
                 bien_specifique = self.cleaned_data.get('bien_specifique')
                 instance.bien = bien_specifique or instance.locataire.biens.first()
