@@ -844,7 +844,8 @@ def ajouter_transaction(request):
 
                 if is_sci_transaction:
                     transaction.locataire = None
-                    transaction.bien = None
+                    if 'travaux' not in type_transaction_nom:
+                        transaction.bien = None
                 elif 'travaux' in type_transaction_nom:
                     # Le bien et le locataire sont déjà définis par le formulaire
                     pass
@@ -949,7 +950,8 @@ def modifier_transaction(request, transaction_id):
 
                 if cleaned_data.get('sci_transaction'):
                     transaction.locataire = None
-                    transaction.bien = None
+                    if 'travaux' not in type_transaction_nom:
+                        transaction.bien = None
                 elif 'travaux' in type_transaction_nom:
                     # Le bien est déjà défini par le formulaire
                     pass
@@ -1010,11 +1012,16 @@ def modifier_transaction(request, transaction_id):
                 print(traceback.format_exc())
                 messages.error(request, f"Erreur lors de la modification de la transaction: {str(e)}")
     else:
-        # Déterminer si c'est une transaction SCI
-        initial_data = {'sci_transaction': transaction.locataire is None and transaction.bien is None}
+        # Une transaction SCI = pas de locataire.
+        # Pour les travaux, un bien peut être associé même si c'est une transaction SCI.
+        is_travaux_type = (transaction.type_transaction and
+                           'travaux' in transaction.type_transaction.nom.lower())
+        initial_data = {
+            'sci_transaction': transaction.locataire is None and (transaction.bien is None or is_travaux_type)
+        }
 
         # Pour les transactions de travaux avec un bien
-        if transaction.bien and transaction.type_transaction and 'travaux' in transaction.type_transaction.nom.lower():
+        if transaction.bien and is_travaux_type:
             initial_data['bien'] = transaction.bien
 
         form = TransactionForm(

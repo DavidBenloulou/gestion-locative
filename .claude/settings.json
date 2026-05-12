@@ -1,0 +1,1 @@
+{"defaultMode":"plan","permissions":{"allow":["Bash(git status:*)","Bash(git diff:*)","Bash(git log:*)","Bash(git branch:*)","Bash(git show:*)","Bash(ls:*)","Bash(cat:*)","Bash(pwd)","Bash(head:*)","Bash(tail:*)","Bash(grep:*)","Bash(python manage.py runserver:*)"]}}
