@@ -27,16 +27,13 @@
                             aria-expanded="false"
                             aria-controls="collapse{{ item.locataire.id }}">
                         <div class="row w-100">
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 <strong>{{ item.locataire.nom }} {{ item.locataire.prenom }}</strong>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 {{ item.all_biens_str }}
                             </div>
-                            <div class="col-md-3 text-end text-danger">
-                                <strong>Créances : {{ item.total_manquant|euros }}</strong>
-                            </div>
-                            <div class="col-md-3 text-end">
+                            <div class="col-md-4 text-end">
                                 {% if item.solde_net >= 0 %}
                                     <span class="badge bg-success fs-6">Solde global : +{{ item.solde_net|euros }}</span>
                                 {% else %}
