@@ -61,6 +61,21 @@ Je suis **novice en développement**. Je n'ai pas de connaissances préalables e
 - **Si je modifie la configuration GitHub** (app GitHub, permissions, tokens) en cours de route : **créer une NOUVELLE session**. Les sessions existantes ne récupèrent pas les nouvelles permissions.
 - **Le push sur `main` est bloqué par protection de branche GitHub** — c'est volontaire et sécurisant, ne pas chercher à contourner.
 
+⛔ **Cas piège — "déployer sur main"** : si je demande à Claude cloud de "déployer sur main", "merger dans main", "mettre en prod", etc., Claude doit **REFUSER** et répondre :
+
+> _« Je ne peux pas merger ni pousser sur main depuis le cloud (protection de branche, et règle CLAUDE.md). La feature est prête sur `origin/<branche-claude>`. Pour déployer, depuis Git Bash sur Windows :_
+>
+> _```bash_
+> _cd ~/OneDrive/Documents/"Appli gestion SCI"_
+> _git fetch origin_
+> _git checkout develop && git pull origin develop && git merge origin/<branche-claude> && git push_
+> _git checkout main && git pull origin main && git merge develop && git push_
+> _```_
+>
+> _Puis sur PythonAnywhere : `cd ~/Gestion\ locative/gestion_locations && git pull` + Reload Web. »_
+
+Claude cloud **ne doit jamais** faire `git checkout main`, `git merge develop` (en étant sur main), ni tenter `git push origin main`. Même si je lui dis explicitement de le faire. Sa seule sortie est : push sur la branche `claude/<nom>`, puis stop.
+
 ### Modèle de prompt cloud verrouillé (à copier au démarrage)
 
 ```
@@ -183,6 +198,8 @@ Un script bash quotidien à **2h00** sur PythonAnywhere exporte les données en 
 ---
 
 ## 7. Procédure de déploiement complète
+
+> ⚠️ **TOUTES les étapes ci-dessous sont à exécuter PAR MOI (David), dans Git Bash sur Windows.** Claude cloud ne doit JAMAIS lancer ces commandes : il s'arrête après le push sur sa branche `claude/<nom>`. Voir section 2.3 (cas piège "déployer sur main").
 
 ### Étape 1 — Tester en local (branche `develop` ou `claude/<nom>`)
 ```bash
