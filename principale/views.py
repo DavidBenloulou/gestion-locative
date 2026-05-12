@@ -2428,13 +2428,19 @@ def creances(request):
     ).select_related('type_transaction', 'locataire', 'bien')
 
     # Organiser les transactions par (locataire_id, bien_id, annee, mois)
+    # ET par (locataire_id, bien_id) pour le solde net global
     transactions_par_cle = {}
+    transactions_par_locataire_bien = {}
     for t in toutes_transactions:
         if t.locataire_id and t.bien_id and t.mois_concerne:
             cle = (t.locataire_id, t.bien_id, t.mois_concerne.year, t.mois_concerne.month)
             if cle not in transactions_par_cle:
                 transactions_par_cle[cle] = []
             transactions_par_cle[cle].append(t)
+            cle_lb = (t.locataire_id, t.bien_id)
+            if cle_lb not in transactions_par_locataire_bien:
+                transactions_par_locataire_bien[cle_lb] = []
+            transactions_par_locataire_bien[cle_lb].append(t)
 
     # 3. Transactions de caution SANS filtre de date (historique complet)
     transactions_caution = Transaction.objects.filter(
@@ -2569,6 +2575,31 @@ def creances(request):
                         'statut': statut
                     })
 
+        # Calcul du solde net global par locataire (tous biens confondus)
+        total_percu_global = decimal.Decimal('0')
+        total_du_global = decimal.Decimal('0')
+        for bien in biens_locataire:
+            location = toutes_locations.get((locataire.id, bien.id))
+            if not location or not location.date_entree:
+                continue
+            date_debut_bien = max(location.date_entree, date_debut_logiciel)
+            loyer_mensuel = decimal.Decimal(str(bien.loyer_mensuel or 0))
+            montant_charges = decimal.Decimal(str(bien.montant_charges if bien.montant_charges is not None else 0))
+            # Compter les mois depuis date_entree jusqu'à aujourd'hui
+            d = date_debut_bien
+            while d <= date_aujourd_hui:
+                total_du_global += loyer_mensuel + montant_charges
+                if d.month == 12:
+                    d = date(d.year + 1, 1, 1)
+                else:
+                    d = date(d.year, d.month + 1, 1)
+            # Toutes les transactions recette (hors caution) pour ce bien
+            for t in transactions_par_locataire_bien.get((locataire.id, bien.id), []):
+                nom = t.type_transaction.nom.lower()
+                if 'caution' not in nom and 'garantie' not in nom and 'om' not in nom:
+                    total_percu_global += decimal.Decimal(str(t.montant))
+        solde_net = total_percu_global - total_du_global
+
         if paiements_problematiques:
             total_manquant = decimal.Decimal('0')
             for p in paiements_problematiques:
@@ -2585,7 +2616,8 @@ def creances(request):
                 'bien': biens_locataire.first(),
                 'all_biens_str': tous_biens_str,
                 'paiements': paiements_problematiques,
-                'total_manquant': total_manquant
+                'total_manquant': total_manquant,
+                'solde_net': solde_net,
             })
 
     context = {
@@ -4636,4 +4668,227 @@ def save_montant_om(request):
             )
     except (ValueError, decimal.InvalidOperation):
         return JsonResponse({'ok': False, 'error': 'Montant invalide'}, status=400)
+
+
+# ============================================================
+# RELEVÉ DE COMPTE LOCATAIRE
+# ============================================================
+
+def _calculer_releve(locataire, current_sci):
+    """
+    Calcule le relevé de compte mensuel d'un locataire depuis son entrée.
+    Retourne une liste de dicts par (bien, liste de lignes mensuelles).
+    """
+    noms_mois_fr = {
+        1: 'Janvier', 2: 'Février', 3: 'Mars', 4: 'Avril', 5: 'Mai', 6: 'Juin',
+        7: 'Juillet', 8: 'Août', 9: 'Septembre', 10: 'Octobre', 11: 'Novembre', 12: 'Décembre'
+    }
+    date_debut_logiciel = date(2025, 1, 1)
+    date_aujourd_hui = date.today()
+
+    # Transactions RECETTE (hors caution/OM) du locataire pour la SCI
+    transactions = list(Transaction.objects.filter(
+        sci=current_sci,
+        locataire=locataire,
+        type_transaction__categorie='RECETTE',
+        mois_concerne__isnull=False,
+    ).select_related('type_transaction', 'bien'))
+
+    # Indexer par (bien_id, annee, mois)
+    trans_idx = {}
+    for t in transactions:
+        cle = (t.bien_id, t.mois_concerne.year, t.mois_concerne.month)
+        if cle not in trans_idx:
+            trans_idx[cle] = []
+        trans_idx[cle].append(t)
+
+    locations = LocationBien.objects.filter(
+        locataire=locataire,
+        bien__sci=current_sci,
+    ).select_related('bien').order_by('date_entree')
+
+    biens_releve = []
+    for location in locations:
+        bien = location.bien
+        if not location.date_entree:
+            continue
+        date_debut = max(location.date_entree, date_debut_logiciel)
+        date_fin = location.date_sortie if location.date_sortie else date_aujourd_hui
+
+        loyer_mensuel = decimal.Decimal(str(bien.loyer_mensuel or 0))
+        charges_mensuelles = decimal.Decimal(str(bien.montant_charges if bien.montant_charges is not None else 0))
+
+        lignes = []
+        solde_cumule = decimal.Decimal('0')
+        d = date_debut
+        while d <= date_fin:
+            trans_mois = trans_idx.get((bien.id, d.year, d.month), [])
+            loyer_paye = decimal.Decimal('0')
+            charges_payees = decimal.Decimal('0')
+            for t in trans_mois:
+                nom = t.type_transaction.nom.lower()
+                if 'caution' in nom or 'garantie' in nom or 'om' in nom:
+                    continue
+                if 'charge' in nom:
+                    charges_payees += decimal.Decimal(str(t.montant))
+                else:
+                    loyer_paye += decimal.Decimal(str(t.montant))
+
+            du_mois = loyer_mensuel + charges_mensuelles
+            paye_mois = loyer_paye + charges_payees
+            ecart = paye_mois - du_mois
+            solde_cumule += ecart
+
+            lignes.append({
+                'mois_label': f"{noms_mois_fr[d.month]} {d.year}",
+                'loyer_du': loyer_mensuel,
+                'charges_dues': charges_mensuelles,
+                'loyer_paye': loyer_paye,
+                'charges_payees': charges_payees,
+                'ecart': ecart,
+                'solde_cumule': solde_cumule,
+            })
+
+            if d.month == 12:
+                d = date(d.year + 1, 1, 1)
+            else:
+                d = date(d.year, d.month + 1, 1)
+
+        biens_releve.append({
+            'bien': bien,
+            'location': location,
+            'lignes': lignes,
+            'solde_final': solde_cumule,
+        })
+
+    return biens_releve
+
+
+def releve_locataire(request, locataire_id):
+    """Relevé de compte complet d'un locataire : mois par mois depuis son entrée."""
+    locataire = get_object_or_404(Locataire, id=locataire_id, biens__sci=request.current_sci)
+    biens_releve = _calculer_releve(locataire, request.current_sci)
+    return render(request, 'principale/releve_locataire.html', {
+        'locataire': locataire,
+        'biens_releve': biens_releve,
+        'date_edition': date.today().strftime('%d/%m/%Y'),
+    })
+
+
+def export_releve_locataire_pdf(request, locataire_id):
+    """Génère un PDF du relevé de compte pour envoi au locataire."""
+    locataire = get_object_or_404(Locataire, id=locataire_id, biens__sci=request.current_sci)
+    biens_releve = _calculer_releve(locataire, request.current_sci)
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=landscape(A4),
+        leftMargin=1.0*cm, rightMargin=1.0*cm,
+        topMargin=1.5*cm, bottomMargin=1.5*cm,
+    )
+    elements = []
+    styles = getSampleStyleSheet()
+
+    titre_style = ParagraphStyle('Titre', parent=styles['Heading1'], fontSize=14,
+                                  alignment=TA_CENTER, spaceAfter=0.3*cm)
+    sous_titre_style = ParagraphStyle('SousTitre', parent=styles['Normal'], fontSize=10,
+                                       textColor=colors.grey, alignment=TA_CENTER, spaceAfter=0.8*cm)
+    section_style = ParagraphStyle('Section', parent=styles['Heading2'], fontSize=11,
+                                    spaceBefore=0.5*cm, spaceAfter=0.3*cm)
+    cell_c = ParagraphStyle('CC', parent=styles['Normal'], fontSize=8, alignment=TA_CENTER,
+                             leading=10, spaceBefore=1, spaceAfter=1)
+    cell_r = ParagraphStyle('CR', parent=styles['Normal'], fontSize=8, alignment=TA_RIGHT,
+                             leading=10, spaceBefore=1, spaceAfter=1)
+
+    def fmt(val):
+        """Formater un Decimal en €"""
+        try:
+            f = f"{float(val):,.2f}".replace(',', ' ').replace('.', ',')
+            return f"{f} €"
+        except Exception:
+            return str(val)
+
+    elements.append(Paragraph(
+        f"Relevé de compte — {locataire.prenom} {locataire.nom}",
+        titre_style
+    ))
+    elements.append(Paragraph(
+        f"{request.current_sci.nom} — Édité le {date.today().strftime('%d/%m/%Y')}",
+        sous_titre_style
+    ))
+
+    for bloc in biens_releve:
+        bien = bloc['bien']
+        adresse = f"{bien.numero_formate + ' - ' if bien.numero else ''}{bien.adresse}"
+        elements.append(Paragraph(f"Bien : {adresse}", section_style))
+
+        headers = [
+            Paragraph('<b>Période</b>', cell_c),
+            Paragraph('<b>Loyer dû</b>', cell_c),
+            Paragraph('<b>Charges dues</b>', cell_c),
+            Paragraph('<b>Loyer payé</b>', cell_c),
+            Paragraph('<b>Charges payées</b>', cell_c),
+            Paragraph('<b>Écart mois</b>', cell_c),
+            Paragraph('<b>Solde cumulé</b>', cell_c),
+        ]
+        data = [headers]
+
+        for ligne in bloc['lignes']:
+            ecart_str = fmt(ligne['ecart'])
+            solde_str = fmt(ligne['solde_cumule'])
+            data.append([
+                Paragraph(ligne['mois_label'], cell_c),
+                Paragraph(fmt(ligne['loyer_du']), cell_r),
+                Paragraph(fmt(ligne['charges_dues']), cell_r),
+                Paragraph(fmt(ligne['loyer_paye']), cell_r),
+                Paragraph(fmt(ligne['charges_payees']), cell_r),
+                Paragraph(ecart_str, cell_r),
+                Paragraph(solde_str, cell_r),
+            ])
+
+        # Ligne total
+        total_du = sum(l['loyer_du'] + l['charges_dues'] for l in bloc['lignes'])
+        total_paye = sum(l['loyer_paye'] + l['charges_payees'] for l in bloc['lignes'])
+        data.append([
+            Paragraph('<b>TOTAL</b>', cell_c),
+            Paragraph('', cell_c),
+            Paragraph('', cell_c),
+            Paragraph(f'<b>{fmt(total_paye)}</b>', cell_r),
+            Paragraph('', cell_c),
+            Paragraph('', cell_c),
+            Paragraph(f'<b>{fmt(bloc["solde_final"])}</b>', cell_r),
+        ])
+
+        page_w = landscape(A4)[0] - 2.0*cm
+        col_widths = [page_w * w for w in [0.14, 0.12, 0.13, 0.12, 0.13, 0.13, 0.13]]
+        table = Table(data, colWidths=col_widths, repeatRows=1)
+
+        ts = TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.Color(0.85, 0.85, 0.85)),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.Color(0.9, 0.9, 0.9)),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+            ('BOX', (0, 0), (-1, -1), 1, colors.black),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ])
+        # Colorer les lignes selon l'écart
+        for i, ligne in enumerate(bloc['lignes'], start=1):
+            if ligne['ecart'] < 0:
+                ts.add('BACKGROUND', (0, i), (-1, i), colors.Color(1.0, 0.92, 0.92))
+            elif ligne['ecart'] > 0:
+                ts.add('BACKGROUND', (0, i), (-1, i), colors.Color(0.92, 1.0, 0.92))
+        table.setStyle(ts)
+        elements.append(table)
+        elements.append(Spacer(1, 0.4*cm))
+
+    doc.build(elements)
+    buffer.seek(0)
+    response = HttpResponse(buffer, content_type='application/pdf')
+    safe_nom = f"{locataire.nom}_{locataire.prenom}".replace(' ', '_')
+    response['Content-Disposition'] = f'attachment; filename=releve_{safe_nom}.pdf'
+    return response
     return JsonResponse({'ok': True})

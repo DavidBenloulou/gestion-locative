@@ -27,14 +27,21 @@
                             aria-expanded="false"
                             aria-controls="collapse{{ item.locataire.id }}">
                         <div class="row w-100">
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <strong>{{ item.locataire.nom }} {{ item.locataire.prenom }}</strong>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 {{ item.all_biens_str }}
                             </div>
-                            <div class="col-md-4 text-end text-danger">
-                                <strong>Total dû : {{ item.total_manquant|euros }}</strong>
+                            <div class="col-md-3 text-end text-danger">
+                                <strong>Créances : {{ item.total_manquant|euros }}</strong>
+                            </div>
+                            <div class="col-md-3 text-end">
+                                {% if item.solde_net >= 0 %}
+                                    <span class="badge bg-success fs-6">Solde global : +{{ item.solde_net|euros }}</span>
+                                {% else %}
+                                    <span class="badge bg-danger fs-6">Solde global : {{ item.solde_net|euros }}</span>
+                                {% endif %}
                             </div>
                         </div>
                     </button>
@@ -94,9 +101,12 @@
                             </tbody>
                         </table>
 
-                        <div class="mt-3">
+                        <div class="mt-3 d-flex gap-2">
                             <a href="{% url 'detail_locataire' locataire_id=item.locataire.id %}" class="btn btn-outline-secondary">
                                 <i class="fas fa-user"></i> Voir détails du locataire
+                            </a>
+                            <a href="{% url 'releve_locataire' locataire_id=item.locataire.id %}" class="btn btn-outline-primary">
+                                <i class="fas fa-file-alt"></i> Relevé de compte
                             </a>
                         </div>
                     </div>
