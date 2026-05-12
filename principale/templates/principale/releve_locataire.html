@@ -1,0 +1,126 @@
+{% extends 'principale/base.html' %}
+
+{% block title %}Relevé de compte — {{ locataire.nom }} {{ locataire.prenom }}{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center mb-4">
+    <h1>
+        <i class="fas fa-file-alt me-2"></i>
+        Relevé de compte — {{ locataire.prenom }} {{ locataire.nom }}
+    </h1>
+    <div class="d-flex gap-2">
+        <a href="{% url 'export_releve_locataire_pdf' locataire_id=locataire.id %}" class="btn btn-danger">
+            <i class="fas fa-file-pdf me-1"></i> Télécharger PDF
+        </a>
+        <a href="{% url 'creances' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i> Retour aux créances
+        </a>
+    </div>
+</div>
+
+<div class="alert alert-info mb-4">
+    <i class="fas fa-info-circle me-2"></i>
+    Édité le {{ date_edition }} — {{ current_sci.nom }}.
+    Ce relevé présente mois par mois ce qui était dû et ce qui a été payé depuis le début du bail (à partir du 01/01/2025).
+    Un <span class="text-danger fw-bold">solde négatif</span> indique une dette ; un <span class="text-success fw-bold">solde positif</span> indique un trop-perçu.
+</div>
+
+{% for bloc in biens_releve %}
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <strong>
+                <i class="fas fa-home me-2"></i>
+                {{ bloc.bien.get_type_bien_display }}
+                {% if bloc.bien.numero %} — {{ bloc.bien.numero_formate }}{% endif %}
+                — {{ bloc.bien.adresse }}
+            </strong>
+            <span>
+                Entrée : {{ bloc.location.date_entree|date:"d/m/Y" }}
+                {% if bloc.location.date_sortie %}— Sortie : {{ bloc.location.date_sortie|date:"d/m/Y" }}{% endif %}
+            </span>
+        </div>
+        <div class="card-body p-0">
+            {% if bloc.lignes %}
+            <div class="table-responsive">
+                <table class="table table-hover table-sm mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Période</th>
+                            <th class="text-end">Loyer dû</th>
+                            <th class="text-end">Charges dues</th>
+                            <th class="text-end">Loyer payé</th>
+                            <th class="text-end">Charges payées</th>
+                            <th class="text-end">Écart du mois</th>
+                            <th class="text-end">Solde cumulé</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ligne in bloc.lignes %}
+                            <tr class="
+                                {% if ligne.ecart < 0 %}table-danger
+                                {% elif ligne.ecart > 0 %}table-success
+                                {% endif %}
+                            ">
+                                <td>{{ ligne.mois_label }}</td>
+                                <td class="text-end">{{ ligne.loyer_du|euros }}</td>
+                                <td class="text-end">{{ ligne.charges_dues|euros }}</td>
+                                <td class="text-end">{{ ligne.loyer_paye|euros }}</td>
+                                <td class="text-end">{{ ligne.charges_payees|euros }}</td>
+                                <td class="text-end fw-bold
+                                    {% if ligne.ecart < 0 %}text-danger{% elif ligne.ecart > 0 %}text-success{% endif %}
+                                ">
+                                    {% if ligne.ecart > 0 %}+{% endif %}{{ ligne.ecart|euros }}
+                                </td>
+                                <td class="text-end fw-bold
+                                    {% if ligne.solde_cumule < 0 %}text-danger{% elif ligne.solde_cumule > 0 %}text-success{% endif %}
+                                ">
+                                    {% if ligne.solde_cumule > 0 %}+{% endif %}{{ ligne.solde_cumule|euros }}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="table-secondary fw-bold">
+                        <tr>
+                            <td>TOTAL</td>
+                            <td class="text-end">
+                                {% with total=0 %}
+                                    {% for l in bloc.lignes %}{% endfor %}
+                                {% endwith %}
+                            </td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td></td>
+                            <td class="text-end
+                                {% if bloc.solde_final < 0 %}text-danger{% elif bloc.solde_final > 0 %}text-success{% endif %}
+                            ">
+                                {% if bloc.solde_final > 0 %}+{% endif %}{{ bloc.solde_final|euros }}
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <div class="card-footer d-flex justify-content-end align-items-center gap-3 py-3">
+                <strong>Solde global :</strong>
+                {% if bloc.solde_final < 0 %}
+                    <span class="badge bg-danger fs-6">{{ bloc.solde_final|euros }} (dette)</span>
+                {% elif bloc.solde_final > 0 %}
+                    <span class="badge bg-success fs-6">+{{ bloc.solde_final|euros }} (trop-perçu)</span>
+                {% else %}
+                    <span class="badge bg-secondary fs-6">0,00 € (à jour)</span>
+                {% endif %}
+            </div>
+            {% else %}
+                <p class="p-3 text-muted">Aucune période à afficher pour ce bien.</p>
+            {% endif %}
+        </div>
+    </div>
+{% empty %}
+    <div class="alert alert-warning">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        Aucun bien trouvé pour ce locataire dans la SCI courante.
+    </div>
+{% endfor %}
+
+{% endblock %}
