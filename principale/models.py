@@ -207,6 +207,14 @@ class LocationBien(models.Model):
     montant_caution = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="Montant de la caution")
     date_versement_caution = models.DateField(null=True, blank=True, verbose_name="Date de versement de la caution")
     date_restitution_caution = models.DateField(null=True, blank=True, verbose_name="Date de restitution de la caution")
+    montant_loyer_premier_mois = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        verbose_name="Loyer 1er mois (prorata convenu)"
+    )
+    montant_charges_premier_mois = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        verbose_name="Charges 1er mois (prorata convenu)"
+    )
 
     class Meta:
         verbose_name = "Location de bien"

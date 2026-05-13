@@ -46,6 +46,38 @@ Je suis **novice en développement**. Je n'ai pas de connaissances préalables e
 - Toute autre commande (Edit, Write, `git add/commit/push/checkout/merge/pull`, `migrate`, `makemigrations`, `pip install`, etc.) nécessite ma validation explicite
 - Les modifications affectent directement mes fichiers Windows — je peux tester immédiatement sur `http://127.0.0.1:8000`
 
+### Raccourci "OK merge" (mode LOCAL uniquement)
+
+Quand David écrit "OK merge" après avoir testé sa branche en local sur
+http://127.0.0.1:8000, Claude Code exécute la séquence complète de merge
+et de nettoyage sans redemander confirmation à chaque commande :
+
+1. `git checkout develop && git pull origin develop`
+2. `git merge <branche-en-cours>` (la branche d'où on vient, généralement `claude/<nom>`)
+3. `git push origin develop`
+4. `git checkout main && git pull origin main` (⚠️ pull obligatoire à cause du backup auto de 2h)
+5. `git merge develop && git push origin main`
+6. `git checkout develop`
+7. Suppression de la branche `claude/<nom>` localement (`git branch -d`) et sur GitHub (`git push origin --delete`)
+8. Affichage de la procédure PythonAnywhere (étape 4 de la section 7) à exécuter par David
+
+Conditions impératives :
+- David a testé en local avant de dire "OK merge"
+- Claude affiche la sortie de chaque commande au fur et à mesure
+- En cas de conflit, d'erreur, ou de comportement inattendu : **arrêt immédiat**,
+  affichage du problème, attente de validation explicite avant toute action
+  corrective
+- La suppression de branche (étape 7) ne se fait QUE si la branche source
+  s'appelle `claude/<quelque-chose>`. Pour une branche au nom différent,
+  Claude demande confirmation avant suppression.
+- Claude ne fait JAMAIS le déploiement PythonAnywhere lui-même — il affiche
+  juste la procédure pour David
+
+⚠️ Ce raccourci est **strictement réservé au mode LOCAL** (Claude Code CLI
+en Git Bash sur le PC de David). En mode CLOUD, les règles de la section 2.3
+s'appliquent sans exception : aucun merge sur develop ou main, peu importe
+ce que David dit ou écrit.
+
 ### 2.3 — Spécificités du MODE CLOUD (claude.ai/code)
 
 ⚠️ **Le mode cloud se comporte différemment** du mode local. Les règles de `.claude/settings.json` ne sont **pas appliquées strictement** : Claude Code peut prendre plus d'initiatives une fois le plan validé. D'où des règles renforcées :

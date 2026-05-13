@@ -240,12 +240,15 @@ class LocationBienForm(forms.ModelForm):
     class Meta:
         model = LocationBien
         fields = [
-            'bien', 'date_entree', 'date_sortie'
+            'bien', 'date_entree', 'date_sortie',
+            'montant_loyer_premier_mois', 'montant_charges_premier_mois'
         ]
         widgets = {
             'bien': forms.Select(attrs={'class': 'form-select'}),
             'date_entree': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
             'date_sortie': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'montant_loyer_premier_mois': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0'}),
+            'montant_charges_premier_mois': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0'}),
         }
 
     def __init__(self, *args, **kwargs):
