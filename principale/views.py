@@ -9,6 +9,7 @@ import io
 from reportlab.lib.pagesizes import landscape, A4
 from reportlab.lib import colors
 import decimal
+import json
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_LEFT
 from reportlab.lib.units import cm
@@ -1258,13 +1259,26 @@ def etat_paiements(request):
                     else:
                         loyer_status = "En attente"
                 else:
-                    if total_loyer_paye > 0:
-                        loyer_status = "OK"
+                    # Arrivée en cours du mois courant — utiliser le prorata si renseigné
+                    loyer_attendu_mois_courant = float(location.montant_loyer_premier_mois) if location.montant_loyer_premier_mois is not None else None
+                    if loyer_attendu_mois_courant is not None and loyer_attendu_mois_courant > 0:
+                        if total_loyer_paye >= loyer_attendu_mois_courant:
+                            loyer_status = "OK"
+                        elif total_loyer_paye > 0:
+                            loyer_status = "Partiel"
+                        else:
+                            loyer_status = "N/A (arrivée récente)"
                     else:
-                        loyer_status = "N/A (arrivée récente)"
+                        if total_loyer_paye > 0:
+                            loyer_status = "OK"
+                        else:
+                            loyer_status = "N/A (arrivée récente)"
 
                 if montant_charges is not None and montant_charges > 0:
-                    if total_charges_paye >= montant_charges:
+                    # Pour le mois courant d'arrivée, utiliser le prorata charges si renseigné
+                    est_mois_arrivee_courant = location.date_entree and location.date_entree > premier_jour_mois_courant
+                    charges_attendues_courant = float(location.montant_charges_premier_mois) if (est_mois_arrivee_courant and location.montant_charges_premier_mois is not None) else montant_charges
+                    if total_charges_paye >= charges_attendues_courant:
                         charges_status = "OK"
                     elif total_charges_paye > 0:
                         charges_status = "Partiel"
@@ -1329,15 +1343,20 @@ def etat_paiements(request):
                     total_loyer_prec = sum(p.montant for p in paiements_loyer_prec)
                     total_charges_prec = sum(p.montant for p in paiements_charges_prec)
 
-                    if total_loyer_prec >= loyer_mensuel and loyer_mensuel > 0:
+                    # Pour le mois d'arrivée, utiliser le prorata convenu si renseigné
+                    est_mois_arrivee_prec = (location.date_entree and annee_a_verifier == location.date_entree.year and mois_a_verifier == location.date_entree.month)
+                    loyer_attendu_prec = float(location.montant_loyer_premier_mois) if (est_mois_arrivee_prec and location.montant_loyer_premier_mois is not None) else loyer_mensuel
+                    charges_attendues_prec = float(location.montant_charges_premier_mois) if (est_mois_arrivee_prec and location.montant_charges_premier_mois is not None) else montant_charges
+
+                    if total_loyer_prec >= loyer_attendu_prec and loyer_attendu_prec > 0:
                         loyer_status_prec = "OK"
                     elif total_loyer_prec > 0:
                         loyer_status_prec = "Partiel"
                     else:
                         loyer_status_prec = "Manquant"
 
-                    if montant_charges is not None and montant_charges > 0:
-                        if total_charges_prec >= montant_charges:
+                    if charges_attendues_prec is not None and charges_attendues_prec > 0:
+                        if total_charges_prec >= charges_attendues_prec:
                             charges_status_prec = "OK"
                         elif total_charges_prec > 0:
                             charges_status_prec = "Partiel"
@@ -2521,9 +2540,14 @@ def creances(request):
                         elif 'loyer' in nom_lower or 'caf' in nom_lower or 'retard loyer' in nom_lower:
                             total_loyer_paye += t.montant
 
-                    if total_loyer_paye < loyer_mensuel and loyer_mensuel > 0:
+                    # Pour le mois d'arrivée, utiliser le prorata convenu si renseigné
+                    est_mois_arrivee = (annee_v == location.date_entree.year and mois_v == location.date_entree.month)
+                    loyer_attendu_mois = float(location.montant_loyer_premier_mois) if (est_mois_arrivee and location.montant_loyer_premier_mois is not None) else loyer_mensuel
+                    charges_attendues_mois = float(location.montant_charges_premier_mois) if (est_mois_arrivee and location.montant_charges_premier_mois is not None) else montant_charges
+
+                    if total_loyer_paye < loyer_attendu_mois and loyer_attendu_mois > 0:
                         statut = "Partiel" if total_loyer_paye > 0 else "Non payé"
-                        loyer_decimal = decimal.Decimal(str(loyer_mensuel))
+                        loyer_decimal = decimal.Decimal(str(loyer_attendu_mois))
                         paye_decimal = decimal.Decimal(str(total_loyer_paye))
                         paiements_problematiques.append({
                             'type': f'Loyer ({bien.numero + "-" if bien.numero else ""}{bien.adresse})',
@@ -2534,9 +2558,9 @@ def creances(request):
                             'statut': statut
                         })
 
-                    if montant_charges is not None and montant_charges > 0 and total_charges_paye < montant_charges:
+                    if charges_attendues_mois is not None and charges_attendues_mois > 0 and total_charges_paye < charges_attendues_mois:
                         statut = "Partiel" if total_charges_paye > 0 else "Non payé"
-                        charges_decimal = decimal.Decimal(str(montant_charges))
+                        charges_decimal = decimal.Decimal(str(charges_attendues_mois))
                         paye_decimal = decimal.Decimal(str(total_charges_paye))
                         paiements_problematiques.append({
                             'type': f'Charges ({bien.numero + "-" if bien.numero else ""}{bien.adresse})',
@@ -2666,10 +2690,15 @@ def ajouter_location_bien(request, locataire_id):
         # Filtrer pour n'afficher que les biens vacants
         form = LocationBienForm(sci=request.current_sci, locataire=locataire, vacant_only=True)
 
+    biens_data = {
+        b.id: {'loyer': float(b.loyer_mensuel or 0), 'charges': float(b.montant_charges or 0)}
+        for b in Bien.objects.filter(sci=request.current_sci)
+    }
     return render(request, 'principale/formulaire_location_bien.html', {
         'form': form,
         'locataire': locataire,
-        'titre': f'Ajouter un logement pour {locataire.nom} {locataire.prenom}'
+        'titre': f'Ajouter un logement pour {locataire.nom} {locataire.prenom}',
+        'biens_data': json.dumps(biens_data),
     })
 
 def modifier_location_bien(request, location_id):
@@ -2707,11 +2736,16 @@ def modifier_location_bien(request, location_id):
         # Vérifier ce qui se trouve dans initial après création du formulaire
         print(f"Valeur initiale de date_entree dans le formulaire: {form.initial.get('date_entree')}")
 
+    biens_data = {
+        b.id: {'loyer': float(b.loyer_mensuel or 0), 'charges': float(b.montant_charges or 0)}
+        for b in Bien.objects.filter(sci=request.current_sci)
+    }
     return render(request, 'principale/formulaire_location_bien.html', {
         'form': form,
         'locataire': locataire,
         'location': location,
-        'titre': f'Modifier le logement pour {locataire.nom} {locataire.prenom}'
+        'titre': f'Modifier le logement pour {locataire.nom} {locataire.prenom}',
+        'biens_data': json.dumps(biens_data),
     })
 
 def supprimer_location_bien(request, location_id):
