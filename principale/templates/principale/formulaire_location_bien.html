@@ -265,17 +265,19 @@
         verifierEtOuvrirModale();
     });
 
-    // Au chargement : si on est en modification avec une date hors 1er du mois
-    // et des valeurs déjà renseignées, afficher la zone sans ouvrir la modale
+    // Au chargement : si la date n'est pas le 1er du mois, gérer le prorata
     (function() {
         var dateStr = dateEntreeInput.value;
         var bienId = bienSelect.value;
         var prorata = calculerProrata(dateStr, bienId);
         if (prorata) {
             mettreAJourZoneProrata(prorata);
-            // Si les champs sont déjà remplis (modification), ne pas ouvrir la modale
             if (champLoyer.value || champCharges.value) {
+                // Valeurs déjà renseignées (modification) : afficher la zone, pas de modale
                 prorataConfirme = true;
+            } else {
+                // Champs vides : ouvrir la modale pour demander les montants
+                ouvrirModale(prorata, dateStr);
             }
         }
     })();
