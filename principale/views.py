@@ -4768,15 +4768,20 @@ def _calculer_releve(locataire, current_sci):
                 else:
                     loyer_paye += decimal.Decimal(str(t.montant))
 
-            du_mois = loyer_mensuel + charges_mensuelles
+            # Pour le mois d'arrivée, utiliser le prorata convenu si renseigné
+            est_mois_arrivee = (d.year == location.date_entree.year and d.month == location.date_entree.month)
+            loyer_du_mois = decimal.Decimal(str(location.montant_loyer_premier_mois)) if (est_mois_arrivee and location.montant_loyer_premier_mois is not None) else loyer_mensuel
+            charges_dues_mois = decimal.Decimal(str(location.montant_charges_premier_mois)) if (est_mois_arrivee and location.montant_charges_premier_mois is not None) else charges_mensuelles
+
+            du_mois = loyer_du_mois + charges_dues_mois
             paye_mois = loyer_paye + charges_payees
             ecart = paye_mois - du_mois
             solde_cumule += ecart
 
             lignes.append({
                 'mois_label': f"{noms_mois_fr[d.month]} {d.year}",
-                'loyer_du': loyer_mensuel,
-                'charges_dues': charges_mensuelles,
+                'loyer_du': loyer_du_mois,
+                'charges_dues': charges_dues_mois,
                 'loyer_paye': loyer_paye,
                 'charges_payees': charges_payees,
                 'ecart': ecart,
