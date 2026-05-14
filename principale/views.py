@@ -4702,6 +4702,7 @@ def save_montant_om(request):
             )
     except (ValueError, decimal.InvalidOperation):
         return JsonResponse({'ok': False, 'error': 'Montant invalide'}, status=400)
+    return JsonResponse({'ok': True})
 
 
 # ============================================================
@@ -4782,22 +4783,21 @@ def _calculer_releve(locataire, current_sci):
         lignes = []
         solde_cumule = decimal.Decimal('0')
 
-        # Ligne caution (première ligne, hors mensualités)
+        # Ligne caution (première ligne, toujours affichée)
         montant_caution_attendu = decimal.Decimal(str(bien.montant_caution)) if bien.montant_caution is not None else decimal.Decimal('0')
         caution_versee = caution_par_bien.get(bien.id, decimal.Decimal('0'))
-        if montant_caution_attendu > 0 or caution_versee > 0:
-            ecart_caution = caution_versee - montant_caution_attendu
-            solde_cumule += ecart_caution
-            lignes.append({
-                'type': 'caution',
-                'mois_label': 'Dépôt de garantie',
-                'loyer_du': montant_caution_attendu,
-                'charges_dues': decimal.Decimal('0'),
-                'loyer_paye': caution_versee,
-                'charges_payees': decimal.Decimal('0'),
-                'ecart': ecart_caution,
-                'solde_cumule': solde_cumule,
-            })
+        ecart_caution = caution_versee - montant_caution_attendu
+        solde_cumule += ecart_caution
+        lignes.append({
+            'type': 'caution',
+            'mois_label': 'Dépôt de garantie',
+            'loyer_du': montant_caution_attendu,
+            'charges_dues': decimal.Decimal('0'),
+            'loyer_paye': caution_versee,
+            'charges_payees': decimal.Decimal('0'),
+            'ecart': ecart_caution,
+            'solde_cumule': solde_cumule,
+        })
 
         d = date_debut
         while d <= date_fin:
