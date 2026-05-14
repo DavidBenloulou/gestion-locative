@@ -56,7 +56,6 @@
                                     <th>Montant payé</th>
                                     <th>Montant manquant</th>
                                     <th>Statut</th>
-                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -88,11 +87,7 @@
                                                 <span class="badge bg-secondary">{{ paiement.statut }}</span>
                                             {% endif %}
                                         </td>
-                                        <td>
-                                            <a href="{% url 'ajouter_transaction' %}?locataire={{ item.locataire.id }}" class="btn btn-sm btn-primary">
-                                                <i class="fas fa-plus-circle"></i> Enregistrer paiement
-                                            </a>
-                                        </td>
+                                        <td></td>
                                     </tr>
                                 {% endfor %}
                             </tbody>

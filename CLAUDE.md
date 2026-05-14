@@ -28,117 +28,102 @@ Je suis **novice en développement**. Je n'ai pas de connaissances préalables e
 
 ## 2. Comment je veux que tu travailles avec moi
 
-### 2.1 — Règles communes (valables en LOCAL ET en CLOUD)
+### 2.1 — Règles de travail (valables en mode LOCAL et CLOUD)
 
 - **Plan détaillé d'abord** : avant toute modification, présente un plan structuré (fichiers concernés, modifications prévues, ordre des étapes) et attends mon accord
 - **Validation par bloc cohérent** : ne demande pas confirmation à chaque ligne, mais regroupe par unité logique (un fichier modifié = un point de validation)
-- **JAMAIS de merge automatique sur `develop` ou `main`** : tu travailles toujours sur une branche dédiée nommée `claude/<description-courte>`. Le merge vers `develop` et `main` se fait MANUELLEMENT par moi, en Git Bash, après test en local
-- **JAMAIS de Pull Request automatique** : si je veux une PR, je la créerai moi-même
+- **Toujours travailler sur une branche dédiée** nommée `claude/<description-courte>`, créée depuis `develop`
 - **Le test en local par moi est obligatoire** : avant tout merge vers `main`, je dois avoir testé sur `http://127.0.0.1:8000` avec ma vraie base de données. Tu ne peux pas tester à ma place.
 - **Explique brièvement** ce que fait chaque commande avant de la lancer
 - **Analyse les erreurs immédiatement** et propose une correction claire
 - **Rassure en cas d'erreur** — les erreurs sont normales et toujours récupérables
 
-### 2.2 — Spécificités du MODE LOCAL (Git Bash + Claude Code CLI)
+### 2.2 — Workflow de fin de feature (LOCAL et CLOUD identiquement)
 
-- Le mode plan strict est configuré dans `.claude/settings.json` (`defaultMode: plan`). Tu ne peux **rien modifier** sans accord explicite.
-- Commandes auto-autorisées (sans demande) : `git status/diff/log/branch/show`, `ls`, `cat`, `pwd`, `head`, `tail`, `grep`, `python manage.py runserver`
-- Toute autre commande (Edit, Write, `git add/commit/push/checkout/merge/pull`, `migrate`, `makemigrations`, `pip install`, etc.) nécessite ma validation explicite
-- Les modifications affectent directement mes fichiers Windows — je peux tester immédiatement sur `http://127.0.0.1:8000`
+C'est le cœur de la collaboration. Le workflow est **le même dans les deux modes**, à un détail près : en cloud, c'est moi qui exécute le `git pull` local pour tester (Claude cloud n'a pas accès à mon PC).
 
-### Raccourci "OK merge" (mode LOCAL uniquement)
+**Étape A — Code prêt sur la branche `claude/<nom>`**
+- Commit et push sur la branche `claude/<nom>` (en local : après ma validation ; en cloud : directement)
+- Ne jamais merger dans `develop` ou `main` à ce stade
 
-Quand David écrit "OK merge" après avoir testé sa branche en local sur
-http://127.0.0.1:8000, Claude Code exécute la séquence complète de merge
-et de nettoyage sans redemander confirmation à chaque commande :
+**Étape B — Donner spontanément les commandes pour tester en local**
+Sans attendre que je te le demande, fournis-moi la séquence à exécuter dans Git Bash sur mon PC :
+- En mode CLOUD :
+  ```
+  git pull origin claude/<nom>
+  python manage.py migrate    # si migration créée
+  python manage.py runserver
+  ```
+- En mode LOCAL :
+  ```
+  python manage.py migrate    # si migration créée
+  python manage.py runserver
+  ```
+Puis précise ce que je dois tester sur `http://127.0.0.1:8000`.
+
+**Étape C — Attendre mon retour**
+Je teste et je te dis "OK déploie" (ou équivalent : "OK pour la prod", "go", "déploie", "ok merge", etc.). Si je signale un problème, on corrige avant de continuer.
+
+**Étape D — Une fois mon OK reçu, exécuter automatiquement la séquence de déploiement**
+Cette séquence s'applique partout (LOCAL comme CLOUD), sans redemander confirmation à chaque commande :
 
 1. `git checkout develop && git pull origin develop`
-2. `git merge <branche-en-cours>` (la branche d'où on vient, généralement `claude/<nom>`)
+2. `git merge claude/<nom>`
 3. `git push origin develop`
 4. `git checkout main && git pull origin main` (⚠️ pull obligatoire à cause du backup auto de 2h)
 5. `git merge develop && git push origin main`
 6. `git checkout develop`
-7. Suppression de la branche `claude/<nom>` localement (`git branch -d`) et sur GitHub (`git push origin --delete`)
-8. Affichage de la procédure PythonAnywhere (étape 4 de la section 7) à exécuter par David
+7. `git branch -d claude/<nom>` puis `git push origin --delete claude/<nom>`
 
 Conditions impératives :
-- David a testé en local avant de dire "OK merge"
-- Claude affiche la sortie de chaque commande au fur et à mesure
-- En cas de conflit, d'erreur, ou de comportement inattendu : **arrêt immédiat**,
-  affichage du problème, attente de validation explicite avant toute action
-  corrective
-- La suppression de branche (étape 7) ne se fait QUE si la branche source
-  s'appelle `claude/<quelque-chose>`. Pour une branche au nom différent,
-  Claude demande confirmation avant suppression.
-- Claude ne fait JAMAIS le déploiement PythonAnywhere lui-même — il affiche
-  juste la procédure pour David
+- Affiche la sortie de chaque commande au fur et à mesure
+- En cas de conflit, d'erreur ou de comportement inattendu : **arrêt immédiat**, affichage du problème, attente de validation explicite avant toute action corrective
+- La suppression de branche (étape 7) ne se fait QUE si la branche source s'appelle `claude/<quelque-chose>`. Pour une branche au nom différent, demander confirmation avant suppression.
 
-⚠️ Ce raccourci est **strictement réservé au mode LOCAL** (Claude Code CLI
-en Git Bash sur le PC de David). En mode CLOUD, les règles de la section 2.3
-s'appliquent sans exception : aucun merge sur develop ou main, peu importe
-ce que David dit ou écrit.
-
-### 2.3 — Spécificités du MODE CLOUD (claude.ai/code)
-
-⚠️ **Le mode cloud se comporte différemment** du mode local. Les règles de `.claude/settings.json` ne sont **pas appliquées strictement** : Claude Code peut prendre plus d'initiatives une fois le plan validé. D'où des règles renforcées :
-
-- **Toujours activer "Mode planification"** dans l'interface AVANT d'envoyer le premier prompt (bouton en bas de la zone de saisie)
-- **Toujours formuler un prompt verrouillé** au démarrage qui interdit explicitement :
-  - Tout merge dans `develop` ou `main`
-  - Toute création automatique de Pull Request
-  - Tout push sur `develop` ou `main` directement
-  - Toute modification au-delà de la tâche décrite
-- **Toujours travailler sur une branche dédiée** : `claude/<description>` créée depuis `develop`
-- **Le cloud ne peut PAS tester avec mes vraies données** (pas d'accès à ma base SQLite locale, ni à mon serveur). Donc le test final est TOUJOURS de mon côté, après `git pull` en local.
-- **Si je modifie la configuration GitHub** (app GitHub, permissions, tokens) en cours de route : **créer une NOUVELLE session**. Les sessions existantes ne récupèrent pas les nouvelles permissions.
-- **Le push sur `main` est bloqué par protection de branche GitHub** — c'est volontaire et sécurisant, ne pas chercher à contourner.
-
-⛔ **Cas piège — "déployer sur main"** : si je demande à Claude cloud de "déployer sur main", "merger dans main", "mettre en prod", etc., Claude doit **REFUSER** et répondre :
-
-> _« Je ne peux pas merger ni pousser sur main depuis le cloud (protection de branche, et règle CLAUDE.md). La feature est prête sur `origin/<branche-claude>`. Pour déployer, depuis Git Bash sur Windows :_
->
-> _```bash_
-> _cd ~/OneDrive/Documents/"Appli gestion SCI"_
-> _git fetch origin_
-> _git checkout develop && git pull origin develop && git merge origin/<branche-claude> && git push_
-> _git checkout main && git pull origin main && git merge develop && git push_
-> _```_
->
-> _Puis sur PythonAnywhere : `cd ~/Gestion\ locative/gestion_locations && git pull` + Reload Web. »_
-
-Claude cloud **ne doit jamais** faire `git checkout main`, `git merge develop` (en étant sur main), ni tenter `git push origin main`. Même si je lui dis explicitement de le faire. Sa seule sortie est : push sur la branche `claude/<nom>`, puis stop.
-
-### Modèle de prompt cloud verrouillé (à copier au démarrage)
-
+**Étape E — Donner la procédure PythonAnywhere**
+Seule étape manuelle restante : la console PythonAnywhere n'est accessible que par moi. Donne-moi la séquence à exécuter :
 ```
-Contexte : projet gestion-locative, branche develop.
-
-Tâche : <description précise>
-
-Règles strictes :
-1. Lis le code pour confirmer ton diagnostic avant toute proposition
-2. Présente-moi un plan détaillé (fichiers, diffs, étapes)
-3. ATTENDS MA VALIDATION EXPLICITE avant toute modification
-4. Crée une branche dédiée nommée claude/<nom-court> depuis develop
-5. Effectue les modifications, commit, push sur cette branche UNIQUEMENT
-6. NE merge PAS dans develop ou main
-7. NE crée PAS de Pull Request automatiquement
-8. Arrête-toi après le push et résume ce que tu as fait
-
-Contraintes du projet : voir CLAUDE.md (notamment is not None, filtre |euros, conventions cautions)
+cd ~/Gestion\ locative/gestion_locations
+git pull
+python manage.py migrate    # si migration concernée
 ```
+Puis onglet **Web** → **Reload davidbenloulou.pythonanywhere.com**
+
+**Étape F — Demander mon retour sur la production**
+Vérifie que la fonctionnalité marche bien en prod avant de considérer la tâche terminée.
+
+**Étape G — Mettre à jour CLAUDE.md silencieusement**
+Si la feature a introduit l'un des éléments suivants, modifie `CLAUDE.md` directement (sur la branche `claude/<nom>` AVANT le merge, ou via un commit dédié sur `develop` puis re-merge si on est déjà après le déploiement) :
+- Nouveaux champs de modèle ou nouvelles conventions de code
+- Nouvelle leçon ou piège général qui peut se reproduire (ex. piège JavaScript, piège Git, etc.)
+- Référence à une migration importante
+- Modification du workflow lui-même
+
+Ne me demande pas la permission — fais-le silencieusement et **informe-moi à la fin de ce qui a été ajouté/modifié** en quelques lignes. Si rien de notable n'est à documenter, ne fais rien et n'en parle pas.
+
+⚠️ Quand `CLAUDE.md` est modifié, me rappeler à la toute fin :
+> _« N'oublie pas d'aller dans le projet "Appli SCI" sur claude.ai → bouton "Sync now" sur la source GitHub de la knowledge base, pour que les nouvelles conversations claude.ai voient la version à jour. »_
+
+### 2.3 — Spécificités résiduelles du mode CLOUD
+
+Le mode CLOUD reste différent du LOCAL sur quelques points techniques inévitables :
+- Pas d'accès à mes vraies données → le test final est TOUJOURS de mon côté
+- Modifications de la config GitHub (app GitHub, permissions, tokens) en cours de session : créer une **nouvelle session** (les sessions existantes ne récupèrent pas les nouvelles permissions)
+- Le sandbox cloud est éphémère : ne jamais y conserver de travail non poussé
+
+Mais les **règles de workflow sont identiques** (section 2.2).
 
 ### 2.4 — Gestion des commits Git
 
 - Tu **proposes** le message de commit (format clair, en français)
-- Je valide le message
-- Tu exécutes `git add`, `git commit -m "..."`, `git push` (avec validation par bloc)
+- Je valide le message implicitement (sauf si je te dis le contraire)
+- Tu exécutes `git add`, `git commit -m "..."`, `git push`
 - **Toujours** faire `git pull origin main` avant un merge sur `main` (le backup automatique de 2h peut avoir modifié `main`)
 - Le message de commit doit décrire **ce qui change**, pas **ce qu'on a fait techniquement** : "Fix: conserver le bien pour les transactions travaux liées à la SCI" ✓ plutôt que "Modifie forms.py et views.py" ✗
 
 ### 2.5 — Style de dialogue
 
-- **Demande de tester dans le navigateur** avant de proposer un commit/déploiement
+- **Demande de tester dans le navigateur** avant de proposer un déploiement
 - **Ne suppose pas** qu'une étape est faite — demande confirmation aux étapes importantes
 - Pas de jargon non expliqué
 - Si tu détectes que je suis sur la mauvaise branche, dans un état inattendu, ou que je m'apprête à faire une bêtise, **arrête-moi avant que j'exécute**
@@ -223,49 +208,27 @@ cd ~/Gestion\ locative/gestion_locations
 Un script bash quotidien à **2h00** sur PythonAnywhere exporte les données en JSON et pousse sur GitHub (`backups/latest_backup.json` sur la branche `main`). C'est pour ça qu'il faut **toujours `git pull origin main` avant de merger develop dans main**.
 
 ### Authentification GitHub
-- **App GitHub officielle "Claude"** installée sur le dépôt `gestion-locative` uniquement (permissions read+write) — c'est ce qui permet à Claude Code en cloud de pousser des branches
+- **App GitHub officielle "Claude"** installée sur le dépôt `gestion-locative` uniquement (permissions read+write) — c'est ce qui permet à Claude Code en cloud de pousser des branches et de pousser sur `main` directement
 - **PAT `Sauvegarde DB-SCI`** : token sans expiration utilisé par le script de backup PythonAnywhere — **ne pas supprimer**
 - Tous les autres PAT historiques ont été supprimés (mai 2026)
+- ⚠️ La protection de branche `main` a été désactivée pour permettre à Claude (local et cloud) de déployer après mon OK explicite — la sécurité repose désormais sur la règle "test en local obligatoire + OK explicite avant déploiement"
 
 ---
 
 ## 7. Procédure de déploiement complète
 
-> ⚠️ **TOUTES les étapes ci-dessous sont à exécuter PAR MOI (David), dans Git Bash sur Windows.** Claude cloud ne doit JAMAIS lancer ces commandes : il s'arrête après le push sur sa branche `claude/<nom>`. Voir section 2.3 (cas piège "déployer sur main").
+> Cette procédure est **exécutée automatiquement par Claude** une fois que j'ai dit "OK déploie" (voir section 2.2, étape D). La seule étape manuelle restante est l'étape PythonAnywhere ci-dessous.
 
-### Étape 1 — Tester en local (branche `develop` ou `claude/<nom>`)
-```bash
-python manage.py runserver
-# Tester sur http://127.0.0.1:8000
-# Ctrl+C pour arrêter
-```
-
-### Étape 2 — Si travail sur une branche `claude/<nom>` : merger dans `develop`
-```bash
-git checkout develop
-git pull origin develop
-git merge claude/<nom>
-git push origin develop
-```
-
-### Étape 3 — Merger `develop` sur `main`
-```bash
-git checkout main
-git pull origin main      # ⚠️ NE PAS OUBLIER (backup auto de nuit)
-git merge develop
-git push origin main
-git checkout develop
-```
-
-### Étape 4 — Déployer sur PythonAnywhere
-Console Bash PythonAnywhere :
+### Étape PythonAnywhere (manuelle — la seule)
+Dans la console Bash PythonAnywhere :
 ```bash
 cd ~/Gestion\ locative/gestion_locations
 git pull
+python manage.py migrate    # si migration concernée
 ```
-Puis onglet Web → **Reload davidbenloulou.pythonanywhere.com**
+Puis onglet **Web** → **Reload davidbenloulou.pythonanywhere.com**
 
-### Étape 5 — Vérifier en production
+### Vérification en production
 Aller sur https://davidbenloulou.pythonanywhere.com et tester la fonctionnalité déployée.
 
 ---
@@ -291,6 +254,8 @@ git push
 
 **Si un merge est en cours et qu'il faut le finaliser** : `git status` indique "All conflicts fixed but you are still merging". Il suffit alors de faire `git commit -m "Merge ..."` pour clôturer.
 
+**Si Vim s'ouvre pour un message de merge** : appuyer sur **Échap**, taper `:wq` puis Entrée. Le merge se finalisera avec le message par défaut.
+
 ---
 
 ## 9. Modèles de données principaux
@@ -299,7 +264,7 @@ git push
 SCI                    # Société Civile Immobilière
 Bien                   # Bien immobilier (logement, parking, commerce)
 Locataire              # Locataire
-LocationBien           # Association locataire-bien avec dates et caution
+LocationBien           # Association locataire-bien avec dates, caution et prorata premier mois
 TypeTransaction        # Type de transaction (Loyer, Charges, Dépôt de garantie...)
 Transaction            # Transaction financière
 ParametresComptables   # Paramètres comptables par année et SCI
@@ -323,6 +288,22 @@ CommentaireCreance     # Commentaires sur les créances
 - `LocationBien.date_versement_caution` = mise à jour automatique à la saisie d'une transaction caution
 - `LocationBien.date_restitution_caution` = mise à jour automatique à la saisie d'un remboursement
 - ⚠️ Les transactions de caution n'ont **pas** de `mois_concerne` — les requêtes de caution ne doivent pas filtrer par `mois_concerne`
+
+### Prorata du premier mois (mai 2026)
+- Migration : `0017_add_prorata_premier_mois_locationbien`
+- Champs ajoutés sur `LocationBien` :
+  - `montant_loyer_premier_mois` (nullable, default None)
+  - `montant_charges_premier_mois` (nullable, default None)
+- **Sémantique** :
+  - `None` → loyer et charges standards du bien s'appliquent (cas par défaut)
+  - Valeur renseignée → ce montant est utilisé partout (créances, état des paiements, relevé de compte) **pour le mois d'arrivée uniquement**
+- **UI** : modale automatique qui s'ouvre à l'ouverture du formulaire de modification d'une `LocationBien` si `date_entree.day != 1`, pour proposer le prorata calculé ou laisser saisir des montants personnalisés
+- ⚠️ Les locataires déjà en place avant cette feature ont `montant_loyer_premier_mois = None` — il faut les corriger manuellement un par un si leur date d'entrée n'est pas le 1er du mois et qu'on veut un relevé de compte juste
+- ⚠️ Toute logique de calcul de loyer dû / charges dues pour le mois d'arrivée doit utiliser le pattern :
+  ```python
+  est_mois_arrivee = (d.year == location.date_entree.year and d.month == location.date_entree.month)
+  loyer_du = location.montant_loyer_premier_mois if (est_mois_arrivee and location.montant_loyer_premier_mois is not None) else bien.loyer_mensuel
+  ```
 
 ### Transactions Travaux + SCI (bug corrigé mai 2026)
 - Une transaction de type "travaux" cochée "Transaction liée à la SCI" peut avoir un bien associé (par exemple : facture de chaudière payée par la SCI mais affectée à un appartement précis)
@@ -391,6 +372,23 @@ return redirect(f"{reverse('liste_xxx')}?{querystring}" if querystring else 'lis
 
 Le template `confirmer_suppression.html` est déjà adapté. Le `{% if request.GET %}` évite un `?` parasite quand il n'y a aucun filtre. Déjà implémenté pour les transactions (mai 2026).
 
+### ⚠️ Scripts JavaScript dépendants de Bootstrap (leçon mai 2026)
+Bootstrap JS est chargé dans `base.html` **après** `{% block content %}` (vers la ligne 167). Donc un `<script>` placé dans `{% block content %}` s'exécute **avant** que `bootstrap.Modal` soit disponible → échec silencieux.
+
+**Règle** : tout script qui utilise `new bootstrap.Modal(...)`, ou plus généralement toute API Bootstrap JS, doit être placé dans `{% block extra_js %}` (déclaré après le chargement de Bootstrap), pas dans `{% block content %}`.
+
+```django
+{% block content %}
+   <!-- HTML, modales, formulaires -->
+{% endblock %}
+
+{% block extra_js %}
+<script>
+   // Ici le code qui utilise bootstrap.Modal, etc.
+</script>
+{% endblock %}
+```
+
 ---
 
 ## 11. Filtre de template `|euros`
@@ -442,7 +440,6 @@ Déclaration dans `gestion_locations/settings.py` :
 - **Cautions sans `mois_concerne`** : requêtes de caution séparées sans filtre date
 - **PythonAnywhere compte gratuit** : renouveler régulièrement l'appli Web et la tâche planifiée
 - **Comptabilité démarre au 01/01/2025** : transactions antérieures = migrations historiques
-- **Mode plan en cloud ≠ Mode plan en local** : voir section 2.3 pour les règles renforcées en cloud
 - **Une session cloud démarrée avant un changement de config GitHub ne profite pas des nouvelles permissions** : créer une nouvelle session
 
 ---
@@ -498,17 +495,15 @@ git push origin --delete nom-de-branche
 
 **Le sandbox cloud est éphémère mais persiste plusieurs heures** : les commits non poussés peuvent rester dans le sandbox jusqu'au timeout, mais ils sont **invisibles** depuis GitHub et depuis le PC local. Ne jamais compter sur le sandbox pour conserver du travail.
 
-**Claude Code en cloud peut être tenté de merger sur `develop` ou `main` directement** quand il ne peut pas créer de PR. Le prompt verrouillé de la section 2.3 évite ça en l'interdisant explicitement.
-
-**La protection de branche `main` sur GitHub bloque le push cloud sur `main`** : c'est une sécurité voulue, pas un bug. Le push sur `main` doit toujours se faire depuis Git Bash local.
-
 ### Git Bash sur Windows — pièges courants
 
 **Le copier-coller multiligne casse souvent** : les caractères `~[200~` apparaissent, ou les lignes sont interprétées comme des commandes séparées. Solution : commandes sur une seule ligne, ou créer le fichier dans VS Code.
 
-**Vim s'ouvre tout seul** pour les messages de merge ou de commit si on oublie `-m "..."`. Solution : `:wq` pour sauver et quitter, ou toujours passer `-m "message"` explicitement.
+**Vim s'ouvre tout seul** pour les messages de merge ou de commit si on oublie `-m "..."`. Solution : Échap puis `:wq` + Entrée pour sauver et quitter, ou toujours passer `-m "message"` explicitement.
 
 **L'état `MERGING` non finalisé** : après un `git merge` interrompu, le prompt affiche `(branche|MERGING)`. Pour finaliser : `git status` pour voir les conflits éventuels, résoudre, puis `git commit -m "Merge ..."`.
+
+**Le `git pull` sur PythonAnywhere peut déclencher Vim** : si le backup nocturne a poussé sur `main` entre-temps, le pull devient un merge et Vim s'ouvre. Échap + `:wq` + Entrée suffit pour le finaliser.
 
 ### Tokens GitHub
 
@@ -516,11 +511,17 @@ git push origin --delete nom-de-branche
 
 **Pour Claude Code, on n'utilise PAS de PAT** : c'est l'app GitHub officielle "Claude" qui gère l'authentification via OAuth. Plus stable, plus sûr.
 
+### Scripts JavaScript et chargement des dépendances
+
+**Piège du `<script>` dans `{% block content %}`** : si le script utilise une bibliothèque chargée en bas de `base.html` (Bootstrap, Chart.js, etc.), il s'exécute trop tôt et échoue silencieusement. Toujours placer ces scripts dans `{% block extra_js %}` (voir section 10).
+
 ### Historique notable
 
 - **Mai 2026 (jour 1)** : installation et configuration de Claude Code en local + cloud. Découverte des différences de comportement entre les deux modes.
 - **Mai 2026 (jour 2)** : correction du bug Travaux+SCI (3 endroits dans `forms.py` et `views.py`). Première session cloud réussie de bout en bout avec Mode planification activé et prompt verrouillé.
+- **Mai 2026 (jour 3)** : ajout de la feature "prorata premier mois" (migration 0017, modale automatique, propagation à créances + état paiements + relevé de compte). Découverte du piège du `<script>` dans `{% block content %}` qui s'exécute avant le chargement de Bootstrap.
+- **Mai 2026 (jour 4)** : refonte du workflow — suppression de la distinction LOCAL/CLOUD dans les règles de travail. Claude est désormais autorisé à exécuter la séquence complète de déploiement (merge develop+main, push, suppression de branche) après mon OK explicite, quel que soit le mode. La protection de branche `main` sur GitHub a été désactivée pour permettre cette nouvelle règle.
 
 ---
 
-*Dernière mise à jour : mai 2026 — après correction du bug Travaux+SCI et première utilisation réussie de Claude Code cloud*
+*Dernière mise à jour : mai 2026 — refonte du workflow unifié LOCAL/CLOUD + règle de mise à jour silencieuse de CLAUDE.md*

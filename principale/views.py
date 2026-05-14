@@ -4702,6 +4702,7 @@ def save_montant_om(request):
             )
     except (ValueError, decimal.InvalidOperation):
         return JsonResponse({'ok': False, 'error': 'Montant invalide'}, status=400)
+    return JsonResponse({'ok': True})
 
 
 # ============================================================
@@ -4712,6 +4713,7 @@ def _calculer_releve(locataire, current_sci):
     """
     Calcule le relevé de compte mensuel d'un locataire depuis son entrée.
     Retourne une liste de dicts par (bien, liste de lignes mensuelles).
+    Chaque ligne possède un champ 'type' : 'loyer', 'caution' ou 'om'.
     """
     noms_mois_fr = {
         1: 'Janvier', 2: 'Février', 3: 'Mars', 4: 'Avril', 5: 'Mai', 6: 'Juin',
@@ -4720,7 +4722,7 @@ def _calculer_releve(locataire, current_sci):
     date_debut_logiciel = date(2025, 1, 1)
     date_aujourd_hui = date.today()
 
-    # Transactions RECETTE (hors caution/OM) du locataire pour la SCI
+    # Transactions RECETTE mensuelles (hors caution/OM) du locataire pour la SCI
     transactions = list(Transaction.objects.filter(
         sci=current_sci,
         locataire=locataire,
@@ -4735,6 +4737,32 @@ def _calculer_releve(locataire, current_sci):
         if cle not in trans_idx:
             trans_idx[cle] = []
         trans_idx[cle].append(t)
+
+    # Caution versée par bien (type_transaction_id=18)
+    caution_par_bien = {}
+    for row in Transaction.objects.filter(
+        sci=current_sci,
+        locataire=locataire,
+        type_transaction__id=18,
+    ).values('bien_id').annotate(total=Sum('montant')):
+        caution_par_bien[row['bien_id']] = decimal.Decimal(str(row['total']))
+
+    # OM payés par (bien_id, annee) — transactions RECETTE avec 'om' dans le nom
+    om_paye_par_bien_annee = {}
+    for row in Transaction.objects.filter(
+        sci=current_sci,
+        locataire=locataire,
+        type_transaction__categorie='RECETTE',
+        type_transaction__nom__icontains='om',
+        mois_concerne__isnull=False,
+    ).values('bien_id', 'mois_concerne__year').annotate(total=Sum('montant')):
+        key = (row['bien_id'], row['mois_concerne__year'])
+        om_paye_par_bien_annee[key] = decimal.Decimal(str(row['total']))
+
+    # Montants OM attendus par (bien_id, annee)
+    om_attendu_par_bien_annee = {}
+    for om in MontantOM.objects.filter(sci=current_sci, locataire=locataire):
+        om_attendu_par_bien_annee[(om.bien_id, om.annee)] = decimal.Decimal(str(om.montant_attendu))
 
     locations = LocationBien.objects.filter(
         locataire=locataire,
@@ -4754,6 +4782,25 @@ def _calculer_releve(locataire, current_sci):
 
         lignes = []
         solde_cumule = decimal.Decimal('0')
+
+        # Ligne caution (première ligne, toujours affichée)
+        # Priorité : bien.montant_caution, puis location.montant_caution en repli
+        _caution_ref = bien.montant_caution if bien.montant_caution is not None else location.montant_caution
+        montant_caution_attendu = decimal.Decimal(str(_caution_ref)) if _caution_ref is not None else decimal.Decimal('0')
+        caution_versee = caution_par_bien.get(bien.id, decimal.Decimal('0'))
+        ecart_caution = caution_versee - montant_caution_attendu
+        solde_cumule += ecart_caution
+        lignes.append({
+            'type': 'caution',
+            'mois_label': 'Dépôt de garantie',
+            'loyer_du': montant_caution_attendu,
+            'charges_dues': decimal.Decimal('0'),
+            'loyer_paye': caution_versee,
+            'charges_payees': decimal.Decimal('0'),
+            'ecart': ecart_caution,
+            'solde_cumule': solde_cumule,
+        })
+
         d = date_debut
         while d <= date_fin:
             trans_mois = trans_idx.get((bien.id, d.year, d.month), [])
@@ -4779,6 +4826,7 @@ def _calculer_releve(locataire, current_sci):
             solde_cumule += ecart
 
             lignes.append({
+                'type': 'loyer',
                 'mois_label': f"{noms_mois_fr[d.month]} {d.year}",
                 'loyer_du': loyer_du_mois,
                 'charges_dues': charges_dues_mois,
@@ -4788,10 +4836,33 @@ def _calculer_releve(locataire, current_sci):
                 'solde_cumule': solde_cumule,
             })
 
+            # Avancer au mois suivant
             if d.month == 12:
-                d = date(d.year + 1, 1, 1)
+                next_d = date(d.year + 1, 1, 1)
             else:
-                d = date(d.year, d.month + 1, 1)
+                next_d = date(d.year, d.month + 1, 1)
+
+            # Ajouter ligne OM après le dernier mois de chaque année dans la période
+            annee_terminee = (next_d.year != d.year) or (next_d > date_fin)
+            if annee_terminee:
+                annee = d.year
+                om_attendu = om_attendu_par_bien_annee.get((bien.id, annee))
+                om_paye = om_paye_par_bien_annee.get((bien.id, annee), decimal.Decimal('0'))
+                if om_attendu is not None or om_paye > 0:
+                    ecart_om = om_paye - (om_attendu if om_attendu is not None else decimal.Decimal('0'))
+                    solde_cumule += ecart_om
+                    lignes.append({
+                        'type': 'om',
+                        'mois_label': f'Ordures Ménagères {annee}',
+                        'loyer_du': om_attendu if om_attendu is not None else decimal.Decimal('0'),
+                        'charges_dues': decimal.Decimal('0'),
+                        'loyer_paye': om_paye,
+                        'charges_payees': decimal.Decimal('0'),
+                        'ecart': ecart_om,
+                        'solde_cumule': solde_cumule,
+                    })
+
+            d = next_d
 
         biens_releve.append({
             'bien': bien,
@@ -4864,9 +4935,9 @@ def export_releve_locataire_pdf(request, locataire_id):
 
         headers = [
             Paragraph('<b>Période</b>', cell_c),
-            Paragraph('<b>Loyer dû</b>', cell_c),
+            Paragraph('<b>Montant dû</b>', cell_c),
             Paragraph('<b>Charges dues</b>', cell_c),
-            Paragraph('<b>Loyer payé</b>', cell_c),
+            Paragraph('<b>Montant payé</b>', cell_c),
             Paragraph('<b>Charges payées</b>', cell_c),
             Paragraph('<b>Écart mois</b>', cell_c),
             Paragraph('<b>Solde cumulé</b>', cell_c),
@@ -4876,15 +4947,26 @@ def export_releve_locataire_pdf(request, locataire_id):
         for ligne in bloc['lignes']:
             ecart_str = fmt(ligne['ecart'])
             solde_str = fmt(ligne['solde_cumule'])
-            data.append([
-                Paragraph(ligne['mois_label'], cell_c),
-                Paragraph(fmt(ligne['loyer_du']), cell_r),
-                Paragraph(fmt(ligne['charges_dues']), cell_r),
-                Paragraph(fmt(ligne['loyer_paye']), cell_r),
-                Paragraph(fmt(ligne['charges_payees']), cell_r),
-                Paragraph(ecart_str, cell_r),
-                Paragraph(solde_str, cell_r),
-            ])
+            if ligne['type'] in ('caution', 'om'):
+                data.append([
+                    Paragraph(f"<b>{ligne['mois_label']}</b>", cell_c),
+                    Paragraph(fmt(ligne['loyer_du']), cell_r),
+                    Paragraph('—', cell_c),
+                    Paragraph(fmt(ligne['loyer_paye']), cell_r),
+                    Paragraph('—', cell_c),
+                    Paragraph(ecart_str, cell_r),
+                    Paragraph(solde_str, cell_r),
+                ])
+            else:
+                data.append([
+                    Paragraph(ligne['mois_label'], cell_c),
+                    Paragraph(fmt(ligne['loyer_du']), cell_r),
+                    Paragraph(fmt(ligne['charges_dues']), cell_r),
+                    Paragraph(fmt(ligne['loyer_paye']), cell_r),
+                    Paragraph(fmt(ligne['charges_payees']), cell_r),
+                    Paragraph(ecart_str, cell_r),
+                    Paragraph(solde_str, cell_r),
+                ])
 
         # Ligne total
         total_du = sum(l['loyer_du'] + l['charges_dues'] for l in bloc['lignes'])
@@ -4914,9 +4996,15 @@ def export_releve_locataire_pdf(request, locataire_id):
             ('TOPPADDING', (0, 0), (-1, -1), 5),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
         ])
-        # Colorer les lignes selon l'écart
+        # Colorer les lignes selon le type et l'écart
         for i, ligne in enumerate(bloc['lignes'], start=1):
-            if ligne['ecart'] < 0:
+            if ligne['type'] == 'caution':
+                ts.add('BACKGROUND', (0, i), (-1, i), colors.Color(0.88, 0.94, 1.0))
+                ts.add('LINEABOVE', (0, i), (-1, i), 1.5, colors.Color(0.05, 0.43, 0.99))
+            elif ligne['type'] == 'om':
+                ts.add('BACKGROUND', (0, i), (-1, i), colors.Color(1.0, 0.97, 0.88))
+                ts.add('LINEABOVE', (0, i), (-1, i), 1.5, colors.Color(0.99, 0.49, 0.08))
+            elif ligne['ecart'] < 0:
                 ts.add('BACKGROUND', (0, i), (-1, i), colors.Color(1.0, 0.92, 0.92))
             elif ligne['ecart'] > 0:
                 ts.add('BACKGROUND', (0, i), (-1, i), colors.Color(0.92, 1.0, 0.92))
