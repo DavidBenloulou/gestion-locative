@@ -50,12 +50,14 @@ C'est le cœur de la collaboration. Le workflow est **le même dans les deux mod
 Sans attendre que je te le demande, fournis-moi la séquence à exécuter dans Git Bash sur mon PC :
 - En mode CLOUD :
   ```
+  cd ~/OneDrive/Documents/"Appli gestion SCI"
   git pull origin claude/<nom>
   python manage.py migrate    # si migration créée
   python manage.py runserver
   ```
 - En mode LOCAL :
   ```
+  cd ~/OneDrive/Documents/"Appli gestion SCI"
   python manage.py migrate    # si migration créée
   python manage.py runserver
   ```
@@ -521,7 +523,8 @@ git push origin --delete nom-de-branche
 - **Mai 2026 (jour 2)** : correction du bug Travaux+SCI (3 endroits dans `forms.py` et `views.py`). Première session cloud réussie de bout en bout avec Mode planification activé et prompt verrouillé.
 - **Mai 2026 (jour 3)** : ajout de la feature "prorata premier mois" (migration 0017, modale automatique, propagation à créances + état paiements + relevé de compte). Découverte du piège du `<script>` dans `{% block content %}` qui s'exécute avant le chargement de Bootstrap.
 - **Mai 2026 (jour 4)** : refonte du workflow — suppression de la distinction LOCAL/CLOUD dans les règles de travail. Claude est désormais autorisé à exécuter la séquence complète de déploiement (merge develop+main, push, suppression de branche) après mon OK explicite, quel que soit le mode. La protection de branche `main` sur GitHub a été désactivée pour permettre cette nouvelle règle.
+- **Mai 2026 (jour 5)** : simplification de la saisie prorata — suppression de la modale Bootstrap, remplacement par des champs directement dans le formulaire (cachés si date d'entrée = 1er du mois, visibles sinon avec loyer complet par défaut et prorata en texte indicatif). Ajout du `cd ~/OneDrive/Documents/"Appli gestion SCI"` en tête des commandes de test local dans le workflow.
 
 ---
 
-*Dernière mise à jour : mai 2026 — refonte du workflow unifié LOCAL/CLOUD + règle de mise à jour silencieuse de CLAUDE.md*
+*Dernière mise à jour : mai 2026 — simplification prorata (suppression modale) + ajout cd dans commandes de test*
