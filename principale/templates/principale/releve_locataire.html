@@ -21,7 +21,8 @@
 <div class="alert alert-info mb-4">
     <i class="fas fa-info-circle me-2"></i>
     Édité le {{ date_edition }} — {{ current_sci.nom }}.
-    Ce relevé présente mois par mois ce qui était dû et ce qui a été payé depuis le début du bail (à partir du 01/01/2025).
+    Ce relevé présente mois par mois ce qui était dû et ce qui a été payé depuis le début du bail (à partir du 01/01/2025),
+    ainsi que le dépôt de garantie et les ordures ménagères annuelles.
     Un <span class="text-danger fw-bold">solde négatif</span> indique une dette ; un <span class="text-success fw-bold">solde positif</span> indique un trop-perçu.
 </div>
 
@@ -46,9 +47,9 @@
                     <thead class="table-light">
                         <tr>
                             <th>Période</th>
-                            <th class="text-end">Loyer dû</th>
+                            <th class="text-end">Montant dû</th>
                             <th class="text-end">Charges dues</th>
-                            <th class="text-end">Loyer payé</th>
+                            <th class="text-end">Montant payé</th>
                             <th class="text-end">Charges payées</th>
                             <th class="text-end">Écart du mois</th>
                             <th class="text-end">Solde cumulé</th>
@@ -56,6 +57,35 @@
                     </thead>
                     <tbody>
                         {% for ligne in bloc.lignes %}
+                            {% if ligne.type == 'caution' %}
+                            <tr style="background-color: #e8f4fd; border-top: 2px solid #0d6efd;">
+                                <td><i class="fas fa-shield-alt me-1 text-primary"></i><strong>{{ ligne.mois_label }}</strong></td>
+                                <td class="text-end text-primary">{{ ligne.loyer_du|euros }}</td>
+                                <td class="text-end">—</td>
+                                <td class="text-end text-primary">{{ ligne.loyer_paye|euros }}</td>
+                                <td class="text-end">—</td>
+                                <td class="text-end fw-bold {% if ligne.ecart < 0 %}text-danger{% elif ligne.ecart > 0 %}text-success{% endif %}">
+                                    {% if ligne.ecart > 0 %}+{% endif %}{{ ligne.ecart|euros }}
+                                </td>
+                                <td class="text-end fw-bold {% if ligne.solde_cumule < 0 %}text-danger{% elif ligne.solde_cumule > 0 %}text-success{% endif %}">
+                                    {% if ligne.solde_cumule > 0 %}+{% endif %}{{ ligne.solde_cumule|euros }}
+                                </td>
+                            </tr>
+                            {% elif ligne.type == 'om' %}
+                            <tr style="background-color: #fff8e1; border-top: 2px solid #fd7e14;">
+                                <td><i class="fas fa-trash me-1 text-warning"></i><strong>{{ ligne.mois_label }}</strong></td>
+                                <td class="text-end" style="color: #fd7e14;">{{ ligne.loyer_du|euros }}</td>
+                                <td class="text-end">—</td>
+                                <td class="text-end" style="color: #fd7e14;">{{ ligne.loyer_paye|euros }}</td>
+                                <td class="text-end">—</td>
+                                <td class="text-end fw-bold {% if ligne.ecart < 0 %}text-danger{% elif ligne.ecart > 0 %}text-success{% endif %}">
+                                    {% if ligne.ecart > 0 %}+{% endif %}{{ ligne.ecart|euros }}
+                                </td>
+                                <td class="text-end fw-bold {% if ligne.solde_cumule < 0 %}text-danger{% elif ligne.solde_cumule > 0 %}text-success{% endif %}">
+                                    {% if ligne.solde_cumule > 0 %}+{% endif %}{{ ligne.solde_cumule|euros }}
+                                </td>
+                            </tr>
+                            {% else %}
                             <tr class="
                                 {% if ligne.ecart < 0 %}table-danger
                                 {% elif ligne.ecart > 0 %}table-success
@@ -77,16 +107,13 @@
                                     {% if ligne.solde_cumule > 0 %}+{% endif %}{{ ligne.solde_cumule|euros }}
                                 </td>
                             </tr>
+                            {% endif %}
                         {% endfor %}
                     </tbody>
                     <tfoot class="table-secondary fw-bold">
                         <tr>
                             <td>TOTAL</td>
-                            <td class="text-end">
-                                {% with total=0 %}
-                                    {% for l in bloc.lignes %}{% endfor %}
-                                {% endwith %}
-                            </td>
+                            <td></td>
                             <td></td>
                             <td></td>
                             <td></td>
