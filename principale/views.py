@@ -4784,7 +4784,9 @@ def _calculer_releve(locataire, current_sci):
         solde_cumule = decimal.Decimal('0')
 
         # Ligne caution (première ligne, toujours affichée)
-        montant_caution_attendu = decimal.Decimal(str(bien.montant_caution)) if bien.montant_caution is not None else decimal.Decimal('0')
+        # Priorité : bien.montant_caution, puis location.montant_caution en repli
+        _caution_ref = bien.montant_caution if bien.montant_caution is not None else location.montant_caution
+        montant_caution_attendu = decimal.Decimal(str(_caution_ref)) if _caution_ref is not None else decimal.Decimal('0')
         caution_versee = caution_par_bien.get(bien.id, decimal.Decimal('0'))
         ecart_caution = caution_versee - montant_caution_attendu
         solde_cumule += ecart_caution
