@@ -37,4 +37,5 @@ urlpatterns = [
     path('ordures-menageres/save/', views.save_montant_om, name='save_montant_om'),
     path('locataires/<int:locataire_id>/releve/', views.releve_locataire, name='releve_locataire'),
     path('locataires/<int:locataire_id>/releve/pdf/', views.export_releve_locataire_pdf, name='export_releve_locataire_pdf'),
+    path('locataires/<int:locataire_id>/releve/excel/', views.export_releve_locataire_excel, name='export_releve_locataire_excel'),
 ]

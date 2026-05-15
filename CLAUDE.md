@@ -89,6 +89,8 @@ cd ~/Gestion\ locative/gestion_locations
 git pull
 python manage.py migrate    # si migration concernée
 ```
+⚠️ Si Vim s'ouvre pendant le `git pull` (merge automatique du backup nocturne) : appuyer sur **Échap**, taper `:wq` puis Entrée pour valider et continuer.
+
 Puis onglet **Web** → **Reload davidbenloulou.pythonanywhere.com**
 
 **Étape F — Demander mon retour sur la production**

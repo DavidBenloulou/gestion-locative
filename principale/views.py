@@ -2599,31 +2599,6 @@ def creances(request):
                         'statut': statut
                     })
 
-        # Calcul du solde net global par locataire (tous biens confondus)
-        total_percu_global = decimal.Decimal('0')
-        total_du_global = decimal.Decimal('0')
-        for bien in biens_locataire:
-            location = toutes_locations.get((locataire.id, bien.id))
-            if not location or not location.date_entree:
-                continue
-            date_debut_bien = max(location.date_entree, date_debut_logiciel)
-            loyer_mensuel = decimal.Decimal(str(bien.loyer_mensuel or 0))
-            montant_charges = decimal.Decimal(str(bien.montant_charges if bien.montant_charges is not None else 0))
-            # Compter les mois depuis date_entree jusqu'à aujourd'hui
-            d = date_debut_bien
-            while d <= date_aujourd_hui:
-                total_du_global += loyer_mensuel + montant_charges
-                if d.month == 12:
-                    d = date(d.year + 1, 1, 1)
-                else:
-                    d = date(d.year, d.month + 1, 1)
-            # Toutes les transactions recette (hors caution) pour ce bien
-            for t in transactions_par_locataire_bien.get((locataire.id, bien.id), []):
-                nom = t.type_transaction.nom.lower()
-                if 'caution' not in nom and 'garantie' not in nom and 'om' not in nom:
-                    total_percu_global += decimal.Decimal(str(t.montant))
-        solde_net = total_percu_global - total_du_global
-
         if paiements_problematiques:
             total_manquant = decimal.Decimal('0')
             for p in paiements_problematiques:
@@ -2634,6 +2609,8 @@ def creances(request):
                         total_manquant += p['montant_manquant']
 
             tous_biens_str = " / ".join(adresses_biens)
+            biens_releve = _calculer_releve(locataire, request.current_sci)
+            solde_net = sum(bloc['solde_final'] for bloc in biens_releve)
 
             recapitulatif_paiements.append({
                 'locataire': locataire,
@@ -2642,6 +2619,7 @@ def creances(request):
                 'paiements': paiements_problematiques,
                 'total_manquant': total_manquant,
                 'solde_net': solde_net,
+                'biens_releve': biens_releve,
             })
 
     context = {
@@ -5018,4 +4996,108 @@ def export_releve_locataire_pdf(request, locataire_id):
     safe_nom = f"{locataire.nom}_{locataire.prenom}".replace(' ', '_')
     response['Content-Disposition'] = f'attachment; filename=releve_{safe_nom}.pdf'
     return response
-    return JsonResponse({'ok': True})
+
+
+def export_releve_locataire_excel(request, locataire_id):
+    """Génère un fichier Excel du relevé de compte d'un locataire."""
+    import xlsxwriter
+    locataire = get_object_or_404(Locataire, id=locataire_id, biens__sci=request.current_sci)
+    biens_releve = _calculer_releve(locataire, request.current_sci)
+
+    output = io.BytesIO()
+    workbook = xlsxwriter.Workbook(output, {'in_memory': True})
+
+    fmt_titre = workbook.add_format({'bold': True, 'font_size': 14, 'align': 'center', 'valign': 'vcenter'})
+    fmt_sous_titre = workbook.add_format({'italic': True, 'font_size': 10, 'align': 'center', 'font_color': '#666666'})
+    fmt_header = workbook.add_format({'bold': True, 'bg_color': '#D9D9D9', 'border': 1, 'align': 'center', 'valign': 'vcenter', 'text_wrap': True})
+    fmt_section = workbook.add_format({'bold': True, 'font_size': 11, 'bg_color': '#EBF3FB', 'border': 1})
+    fmt_total = workbook.add_format({'bold': True, 'bg_color': '#E8E8E8', 'border': 1, 'num_format': '# ##0.00 €'})
+    fmt_caution = workbook.add_format({'bg_color': '#DCE9F9', 'border': 1, 'num_format': '# ##0.00 €', 'bold': True})
+    fmt_caution_lbl = workbook.add_format({'bg_color': '#DCE9F9', 'border': 1, 'bold': True})
+    fmt_om = workbook.add_format({'bg_color': '#FFF8E1', 'border': 1, 'num_format': '# ##0.00 €', 'bold': True})
+    fmt_om_lbl = workbook.add_format({'bg_color': '#FFF8E1', 'border': 1, 'bold': True})
+    fmt_danger = workbook.add_format({'bg_color': '#FDECEA', 'border': 1, 'num_format': '# ##0.00 €'})
+    fmt_success = workbook.add_format({'bg_color': '#EAF7EA', 'border': 1, 'num_format': '# ##0.00 €'})
+    fmt_normal = workbook.add_format({'border': 1, 'num_format': '# ##0.00 €'})
+    fmt_lbl_danger = workbook.add_format({'bg_color': '#FDECEA', 'border': 1})
+    fmt_lbl_success = workbook.add_format({'bg_color': '#EAF7EA', 'border': 1})
+    fmt_lbl_normal = workbook.add_format({'border': 1})
+    fmt_dash = workbook.add_format({'border': 1, 'align': 'center'})
+    fmt_dash_caution = workbook.add_format({'bg_color': '#DCE9F9', 'border': 1, 'align': 'center', 'bold': True})
+    fmt_dash_om = workbook.add_format({'bg_color': '#FFF8E1', 'border': 1, 'align': 'center', 'bold': True})
+
+    ws = workbook.add_worksheet('Relevé')
+    ws.set_column(0, 0, 28)
+    ws.set_column(1, 6, 16)
+
+    row = 0
+    ws.merge_range(row, 0, row, 6, f"Relevé de compte — {locataire.prenom} {locataire.nom}", fmt_titre)
+    row += 1
+    ws.merge_range(row, 0, row, 6,
+        f"{request.current_sci.nom} — Édité le {date.today().strftime('%d/%m/%Y')}", fmt_sous_titre)
+    row += 2
+
+    headers = ['Période', 'Montant dû', 'Charges dues', 'Montant payé', 'Charges payées', 'Écart du mois', 'Solde cumulé']
+
+    for bloc in biens_releve:
+        bien = bloc['bien']
+        adresse = f"{bien.numero_formate + ' - ' if bien.numero else ''}{bien.adresse}"
+        label_section = f"Bien : {adresse}"
+        ws.merge_range(row, 0, row, 6, label_section, fmt_section)
+        row += 1
+
+        for col, h in enumerate(headers):
+            ws.write(row, col, h, fmt_header)
+        row += 1
+
+        for ligne in bloc['lignes']:
+            t = ligne['type']
+            ecart = float(ligne['ecart'])
+
+            if t == 'caution':
+                ws.write(row, 0, ligne['mois_label'], fmt_caution_lbl)
+                ws.write(row, 1, float(ligne['loyer_du']), fmt_caution)
+                ws.write(row, 2, '—', fmt_dash_caution)
+                ws.write(row, 3, float(ligne['loyer_paye']), fmt_caution)
+                ws.write(row, 4, '—', fmt_dash_caution)
+                ws.write(row, 5, float(ligne['ecart']), fmt_caution)
+                ws.write(row, 6, float(ligne['solde_cumule']), fmt_caution)
+            elif t == 'om':
+                ws.write(row, 0, ligne['mois_label'], fmt_om_lbl)
+                ws.write(row, 1, float(ligne['loyer_du']), fmt_om)
+                ws.write(row, 2, '—', fmt_dash_om)
+                ws.write(row, 3, float(ligne['loyer_paye']), fmt_om)
+                ws.write(row, 4, '—', fmt_dash_om)
+                ws.write(row, 5, float(ligne['ecart']), fmt_om)
+                ws.write(row, 6, float(ligne['solde_cumule']), fmt_om)
+            else:
+                if ecart < 0:
+                    f_lbl, f_num, f_d = fmt_lbl_danger, fmt_danger, fmt_danger
+                elif ecart > 0:
+                    f_lbl, f_num, f_d = fmt_lbl_success, fmt_success, fmt_success
+                else:
+                    f_lbl, f_num, f_d = fmt_lbl_normal, fmt_normal, fmt_normal
+                ws.write(row, 0, ligne['mois_label'], f_lbl)
+                ws.write(row, 1, float(ligne['loyer_du']), f_num)
+                ws.write(row, 2, float(ligne['charges_dues']), f_num)
+                ws.write(row, 3, float(ligne['loyer_paye']), f_num)
+                ws.write(row, 4, float(ligne['charges_payees']), f_num)
+                ws.write(row, 5, float(ligne['ecart']), f_d)
+                ws.write(row, 6, float(ligne['solde_cumule']), f_d)
+            row += 1
+
+        ws.write(row, 0, 'TOTAL', fmt_total)
+        for col in range(1, 6):
+            ws.write(row, col, '', fmt_total)
+        ws.write(row, 6, float(bloc['solde_final']), fmt_total)
+        row += 2
+
+    workbook.close()
+    output.seek(0)
+    response = HttpResponse(
+        output,
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    safe_nom = f"{locataire.nom}_{locataire.prenom}".replace(' ', '_')
+    response['Content-Disposition'] = f'attachment; filename=releve_{safe_nom}.xlsx'
+    return response
