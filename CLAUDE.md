@@ -75,7 +75,8 @@ Cette séquence s'applique partout (LOCAL comme CLOUD), sans redemander confirma
 4. `git checkout main && git pull origin main` (⚠️ pull obligatoire à cause du backup auto de 2h)
 5. `git merge develop && git push origin main`
 6. `git checkout develop`
-7. `git branch -d claude/<nom>` puis `git push origin --delete claude/<nom>`
+7. `git branch -d claude/<nom>` (suppression locale uniquement)
+   ⚠️ Ne pas tenter `git push origin --delete claude/<nom>` : le proxy interne de Claude Code bloque la suppression de refs distantes avec un 403 (mesure de sécurité Anthropic, non contournable). La suppression distante est gérée automatiquement par GitHub via l'option "Automatically delete head branches" activée sur le dépôt, qui supprime la branche source dès qu'elle est mergée.
 
 Conditions impératives :
 - Affiche la sortie de chaque commande au fur et à mesure
@@ -515,6 +516,23 @@ git push origin --delete nom-de-branche
 
 **Pour Claude Code, on n'utilise PAS de PAT** : c'est l'app GitHub officielle "Claude" qui gère l'authentification via OAuth. Plus stable, plus sûr.
 
+### Suppression de branches distantes par Claude Code — interdite
+
+Le proxy interne de Claude Code (visible dans les logs sous la forme `http://127.0.0.1:PORT/git/...`) bloque toutes les opérations de suppression de refs distantes avec un 403. C'est un comportement **volontaire** d'Anthropic, pas un bug, pas un problème de permission GitHub, et **pas contournable**. 
+
+Symptôme typique :
+
+```
+$ git push origin --delete claude/<nom>
+error: RPC failed; HTTP 403
+fatal: the remote end hung up unexpectedly
+Everything up-to-date
+```
+
+Diagnostic à ne pas refaire : il est inutile de vérifier les rulesets, les branch protection rules, ou de réinstaller l'app GitHub Claude. Aucun de ces réglages n'est en cause.
+
+Solution adoptée : l'option **"Automatically delete head branches"** est activée sur le dépôt GitHub (Settings → General → Pull Requests). GitHub supprime la branche source automatiquement après merge. Si pour une raison quelconque elle reste, supprimer manuellement via l'onglet Branches du dépôt.
+
 ### Scripts JavaScript et chargement des dépendances
 
 **Piège du `<script>` dans `{% block content %}`** : si le script utilise une bibliothèque chargée en bas de `base.html` (Bootstrap, Chart.js, etc.), il s'exécute trop tôt et échoue silencieusement. Toujours placer ces scripts dans `{% block extra_js %}` (voir section 10).
@@ -526,7 +544,17 @@ git push origin --delete nom-de-branche
 - **Mai 2026 (jour 3)** : ajout de la feature "prorata premier mois" (migration 0017, modale automatique, propagation à créances + état paiements + relevé de compte). Découverte du piège du `<script>` dans `{% block content %}` qui s'exécute avant le chargement de Bootstrap.
 - **Mai 2026 (jour 4)** : refonte du workflow — suppression de la distinction LOCAL/CLOUD dans les règles de travail. Claude est désormais autorisé à exécuter la séquence complète de déploiement (merge develop+main, push, suppression de branche) après mon OK explicite, quel que soit le mode. La protection de branche `main` sur GitHub a été désactivée pour permettre cette nouvelle règle.
 - **Mai 2026 (jour 5)** : simplification de la saisie prorata — suppression de la modale Bootstrap, remplacement par des champs directement dans le formulaire (cachés si date d'entrée = 1er du mois, visibles sinon avec loyer complet par défaut et prorata en texte indicatif). Ajout du `cd ~/OneDrive/Documents/"Appli gestion SCI"` en tête des commandes de test local dans le workflow.
+- **Mai 2026 (jour 6)** : refonte de la vue Créances — le dépliage d'un locataire affiche désormais son relevé de compte complet en inline (au lieu du tableau résumé Type/Période/Statut). Ajout des boutons Export PDF et Export Excel par locataire. Suppression du calcul de solde redondant dans `creances` : le solde de l'en-tête est maintenant dérivé de `_calculer_releve()` pour être cohérent avec le relevé affiché. Nouvelle vue `export_releve_locataire_excel` et URL `locataires/<id>/releve/excel/`.
+- **Mai 2026 (jour 7)** : élucidation du 403 sur la suppression de branches distantes. Le blocage vient du proxy interne de Claude Code (mesure de sécurité Anthropic), pas de GitHub. Désinstallation/réinstallation de l'app sans effet — c'est attendu. Activation de l'option "Automatically delete head branches" sur GitHub pour que la suppression distante se fasse automatiquement après merge. CLAUDE.md mis à jour pour éviter à toute session future de refaire le même diagnostic.
+
+### Modules Python — installation locale
+
+**`xlsxwriter` peut ne pas être installé** sur un environnement neuf. Si une vue d'export Excel plante avec `ModuleNotFoundError: No module named 'xlsxwriter'`, lancer dans Git Bash (serveur arrêté) :
+```bash
+pip install xlsxwriter
+```
+Le module est importé localement dans chaque vue d'export (pas en haut de `views.py`) — c'est le pattern du projet.
 
 ---
 
-*Dernière mise à jour : mai 2026 — simplification prorata (suppression modale) + ajout cd dans commandes de test*
+*Dernière mise à jour : mai 2026 — élucidation 403 suppression branches distantes + option "auto-delete head branches" GitHub*

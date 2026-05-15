@@ -228,27 +228,115 @@
     </div>
   </div>
 </div>
-<!-- Liens rapides -->
+<!-- Exports locataires -->
 <div class="row mt-4">
     <div class="col-md-12">
         <div class="card">
             <div class="card-header">
-                <h5>Accès rapides</h5>
+                <h5><i class="fas fa-file-export"></i> Exports locataires</h5>
             </div>
             <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <a href="{% url 'liste_biens' %}" class="btn btn-outline-primary">
-                        <i class="fas fa-building"></i> Voir tous les biens
-                    </a>
-                    <a href="{% url 'liste_locataires' %}" class="btn btn-outline-success">
-                        <i class="fas fa-users"></i> Voir tous les locataires
-                    </a>
-                    <a href="{% url 'liste_transactions' %}" class="btn btn-outline-info">
-                        <i class="fas fa-exchange-alt"></i> Voir toutes les transactions
-                    </a>
+                <!-- Sélecteur locataire commun -->
+                <div class="mb-3">
+                    <label for="selectLocataireExport" class="form-label fw-semibold">Locataire</label>
+                    <select id="selectLocataireExport" class="form-select" style="max-width: 320px;">
+                        <option value="">-- Choisir un locataire --</option>
+                        {% for loc in locataires_actifs %}
+                        <option value="{{ loc.id }}">{{ loc.nom }} {{ loc.prenom }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <!-- Deux encarts côte à côte -->
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="border rounded p-3 h-100">
+                            <h6 class="fw-semibold mb-3"><i class="fas fa-file-invoice text-primary"></i> Générer une quittance</h6>
+                            <div class="d-flex align-items-end gap-2 flex-wrap">
+                                <div>
+                                    <label for="selectMoisQuittance" class="form-label mb-1">Mois</label>
+                                    <select id="selectMoisQuittance" class="form-select form-select-sm">
+                                        <option value="1">Janvier</option>
+                                        <option value="2">Février</option>
+                                        <option value="3">Mars</option>
+                                        <option value="4">Avril</option>
+                                        <option value="5">Mai</option>
+                                        <option value="6">Juin</option>
+                                        <option value="7">Juillet</option>
+                                        <option value="8">Août</option>
+                                        <option value="9">Septembre</option>
+                                        <option value="10">Octobre</option>
+                                        <option value="11">Novembre</option>
+                                        <option value="12">Décembre</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label for="selectAnneeQuittance" class="form-label mb-1">Année</label>
+                                    <select id="selectAnneeQuittance" class="form-select form-select-sm">
+                                        {% for annee in annees_export %}
+                                        <option value="{{ annee }}">{{ annee }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <a id="btnQuittance" href="#" class="btn btn-primary btn-sm disabled">
+                                    <i class="fas fa-print"></i> Créer la quittance
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="border rounded p-3 h-100 d-flex flex-column justify-content-between">
+                            <h6 class="fw-semibold mb-3"><i class="fas fa-list-alt text-success"></i> Générer un relevé de compte</h6>
+                            <div>
+                                <a id="btnReleve" href="#" class="btn btn-success btn-sm disabled">
+                                    <i class="fas fa-file-pdf"></i> Télécharger le PDF
+                                </a>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    var quittanceTpl = "{% url 'generer_quittance' 0 %}";
+    var relevePdfTpl = "{% url 'export_releve_locataire_pdf' 0 %}";
+
+    var selectLoc  = document.getElementById('selectLocataireExport');
+    var selectMois = document.getElementById('selectMoisQuittance');
+    var selectAnnee = document.getElementById('selectAnneeQuittance');
+    var btnQ = document.getElementById('btnQuittance');
+    var btnR = document.getElementById('btnReleve');
+
+    // Pré-sélectionner le mois et l'année courants
+    var now = new Date();
+    selectMois.value = String(now.getMonth() + 1);
+    selectAnnee.value = String(now.getFullYear());
+
+    function updateButtons() {
+        var id = selectLoc.value;
+        if (id) {
+            var mois  = selectMois.value;
+            var annee = selectAnnee.value;
+            btnQ.href = quittanceTpl.replace('/0/', '/' + id + '/') + '?mois=' + mois + '&annee=' + annee;
+            btnQ.classList.remove('disabled');
+            btnR.href = relevePdfTpl.replace('/0/', '/' + id + '/');
+            btnR.classList.remove('disabled');
+        } else {
+            btnQ.href = '#';
+            btnQ.classList.add('disabled');
+            btnR.href = '#';
+            btnR.classList.add('disabled');
+        }
+    }
+
+    selectLoc.addEventListener('change', updateButtons);
+    selectMois.addEventListener('change', updateButtons);
+    selectAnnee.addEventListener('change', updateButtons);
+})();
+</script>
 {% endblock %}
