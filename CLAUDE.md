@@ -526,7 +526,16 @@ git push origin --delete nom-de-branche
 - **Mai 2026 (jour 3)** : ajout de la feature "prorata premier mois" (migration 0017, modale automatique, propagation à créances + état paiements + relevé de compte). Découverte du piège du `<script>` dans `{% block content %}` qui s'exécute avant le chargement de Bootstrap.
 - **Mai 2026 (jour 4)** : refonte du workflow — suppression de la distinction LOCAL/CLOUD dans les règles de travail. Claude est désormais autorisé à exécuter la séquence complète de déploiement (merge develop+main, push, suppression de branche) après mon OK explicite, quel que soit le mode. La protection de branche `main` sur GitHub a été désactivée pour permettre cette nouvelle règle.
 - **Mai 2026 (jour 5)** : simplification de la saisie prorata — suppression de la modale Bootstrap, remplacement par des champs directement dans le formulaire (cachés si date d'entrée = 1er du mois, visibles sinon avec loyer complet par défaut et prorata en texte indicatif). Ajout du `cd ~/OneDrive/Documents/"Appli gestion SCI"` en tête des commandes de test local dans le workflow.
+- **Mai 2026 (jour 6)** : refonte de la vue Créances — le dépliage d'un locataire affiche désormais son relevé de compte complet en inline (au lieu du tableau résumé Type/Période/Statut). Ajout des boutons Export PDF et Export Excel par locataire. Suppression du calcul de solde redondant dans `creances` : le solde de l'en-tête est maintenant dérivé de `_calculer_releve()` pour être cohérent avec le relevé affiché. Nouvelle vue `export_releve_locataire_excel` et URL `locataires/<id>/releve/excel/`.
+
+### Modules Python — installation locale
+
+**`xlsxwriter` peut ne pas être installé** sur un environnement neuf. Si une vue d'export Excel plante avec `ModuleNotFoundError: No module named 'xlsxwriter'`, lancer dans Git Bash (serveur arrêté) :
+```bash
+pip install xlsxwriter
+```
+Le module est importé localement dans chaque vue d'export (pas en haut de `views.py`) — c'est le pattern du projet.
 
 ---
 
-*Dernière mise à jour : mai 2026 — simplification prorata (suppression modale) + ajout cd dans commandes de test*
+*Dernière mise à jour : mai 2026 — refonte Créances avec relevé inline + exports PDF/Excel*
