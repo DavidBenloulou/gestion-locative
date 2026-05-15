@@ -60,6 +60,11 @@ def dashboard(request):
 
     bilan = recettes_annuelles - depenses_annuelles
 
+    locataires_actifs = Locataire.objects.filter(
+        biens__sci=request.current_sci,
+        locations__date_sortie__isnull=True
+    ).distinct().order_by('nom', 'prenom')
+
     context = {
         'total_biens': total_biens,
         'total_locataires': total_locataires,
@@ -69,6 +74,7 @@ def dashboard(request):
         'annee_courante': annee_courante,
         'annees_disponibles': annees_disponibles,
         'annees_export': list(range(2024, annee_courante + 1)),
+        'locataires_actifs': locataires_actifs,
     }
 
     return render(request, 'principale/dashboard.html', context)

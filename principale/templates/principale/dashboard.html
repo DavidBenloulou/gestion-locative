@@ -228,27 +228,62 @@
     </div>
   </div>
 </div>
-<!-- Liens rapides -->
+<!-- Exports locataires -->
 <div class="row mt-4">
     <div class="col-md-12">
         <div class="card">
             <div class="card-header">
-                <h5>Accès rapides</h5>
+                <h5><i class="fas fa-file-export"></i> Exports locataires</h5>
             </div>
             <div class="card-body">
-                <div class="d-flex justify-content-between">
-                    <a href="{% url 'liste_biens' %}" class="btn btn-outline-primary">
-                        <i class="fas fa-building"></i> Voir tous les biens
-                    </a>
-                    <a href="{% url 'liste_locataires' %}" class="btn btn-outline-success">
-                        <i class="fas fa-users"></i> Voir tous les locataires
-                    </a>
-                    <a href="{% url 'liste_transactions' %}" class="btn btn-outline-info">
-                        <i class="fas fa-exchange-alt"></i> Voir toutes les transactions
-                    </a>
+                <div class="d-flex align-items-center gap-3 flex-wrap">
+                    <div>
+                        <label for="selectLocataireExport" class="form-label mb-1 fw-semibold">Locataire</label>
+                        <select id="selectLocataireExport" class="form-select" style="min-width: 250px;">
+                            <option value="">-- Choisir un locataire --</option>
+                            {% for loc in locataires_actifs %}
+                            <option value="{{ loc.id }}">{{ loc.nom }} {{ loc.prenom }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="d-flex gap-2 mt-3">
+                        <a id="btnQuittance" href="#" class="btn btn-outline-primary disabled">
+                            <i class="fas fa-file-invoice"></i> Créer une quittance
+                        </a>
+                        <a id="btnReleve" href="#" class="btn btn-outline-success disabled">
+                            <i class="fas fa-list-alt"></i> Voir le relevé de compte
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    var quittanceBase = "{% url 'generer_quittance' 0 %}".replace('/0/', '/');
+    var releveBase = "{% url 'releve_locataire' 0 %}".replace('/0/', '/');
+    var select = document.getElementById('selectLocataireExport');
+    var btnQ = document.getElementById('btnQuittance');
+    var btnR = document.getElementById('btnReleve');
+
+    select.addEventListener('change', function () {
+        var id = this.value;
+        if (id) {
+            btnQ.href = quittanceBase + id + '/';
+            btnQ.classList.remove('disabled');
+            btnR.href = releveBase + id + '/';
+            btnR.classList.remove('disabled');
+        } else {
+            btnQ.href = '#';
+            btnQ.classList.add('disabled');
+            btnR.href = '#';
+            btnR.classList.add('disabled');
+        }
+    });
+})();
+</script>
 {% endblock %}
