@@ -236,24 +236,22 @@
                 <h5><i class="fas fa-file-export"></i> Exports locataires</h5>
             </div>
             <div class="card-body">
-                <div class="d-flex align-items-center gap-3 flex-wrap">
+                <div class="d-flex align-items-end gap-3 flex-wrap">
                     <div>
                         <label for="selectLocataireExport" class="form-label mb-1 fw-semibold">Locataire</label>
-                        <select id="selectLocataireExport" class="form-select" style="min-width: 250px;">
+                        <select id="selectLocataireExport" class="form-select" style="min-width: 280px;">
                             <option value="">-- Choisir un locataire --</option>
                             {% for loc in locataires_actifs %}
                             <option value="{{ loc.id }}">{{ loc.nom }} {{ loc.prenom }}</option>
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="d-flex gap-2 mt-3">
-                        <a id="btnQuittance" href="#" class="btn btn-outline-primary disabled">
-                            <i class="fas fa-file-invoice"></i> Créer une quittance
-                        </a>
-                        <a id="btnReleve" href="#" class="btn btn-outline-success disabled">
-                            <i class="fas fa-list-alt"></i> Voir le relevé de compte
-                        </a>
-                    </div>
+                    <a id="btnQuittance" href="#" class="btn btn-outline-primary disabled">
+                        <i class="fas fa-file-invoice"></i> Créer une quittance
+                    </a>
+                    <a id="btnReleve" href="#" class="btn btn-outline-success disabled">
+                        <i class="fas fa-list-alt"></i> Voir le relevé de compte
+                    </a>
                 </div>
             </div>
         </div>
