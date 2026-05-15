@@ -264,8 +264,8 @@
 {% block extra_js %}
 <script>
 (function () {
-    var quittanceBase = "{% url 'generer_quittance' 0 %}".replace('/0/', '/');
-    var releveBase = "{% url 'releve_locataire' 0 %}".replace('/0/', '/');
+    var quittanceTpl = "{% url 'generer_quittance' 0 %}";
+    var releveTpl = "{% url 'releve_locataire' 0 %}";
     var select = document.getElementById('selectLocataireExport');
     var btnQ = document.getElementById('btnQuittance');
     var btnR = document.getElementById('btnReleve');
@@ -273,9 +273,9 @@
     select.addEventListener('change', function () {
         var id = this.value;
         if (id) {
-            btnQ.href = quittanceBase + id + '/';
+            btnQ.href = quittanceTpl.replace('/0/', '/' + id + '/');
             btnQ.classList.remove('disabled');
-            btnR.href = releveBase + id + '/';
+            btnR.href = releveTpl.replace('/0/', '/' + id + '/');
             btnR.classList.remove('disabled');
         } else {
             btnQ.href = '#';
