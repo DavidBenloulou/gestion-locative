@@ -2599,31 +2599,6 @@ def creances(request):
                         'statut': statut
                     })
 
-        # Calcul du solde net global par locataire (tous biens confondus)
-        total_percu_global = decimal.Decimal('0')
-        total_du_global = decimal.Decimal('0')
-        for bien in biens_locataire:
-            location = toutes_locations.get((locataire.id, bien.id))
-            if not location or not location.date_entree:
-                continue
-            date_debut_bien = max(location.date_entree, date_debut_logiciel)
-            loyer_mensuel = decimal.Decimal(str(bien.loyer_mensuel or 0))
-            montant_charges = decimal.Decimal(str(bien.montant_charges if bien.montant_charges is not None else 0))
-            # Compter les mois depuis date_entree jusqu'à aujourd'hui
-            d = date_debut_bien
-            while d <= date_aujourd_hui:
-                total_du_global += loyer_mensuel + montant_charges
-                if d.month == 12:
-                    d = date(d.year + 1, 1, 1)
-                else:
-                    d = date(d.year, d.month + 1, 1)
-            # Toutes les transactions recette (hors caution) pour ce bien
-            for t in transactions_par_locataire_bien.get((locataire.id, bien.id), []):
-                nom = t.type_transaction.nom.lower()
-                if 'caution' not in nom and 'garantie' not in nom and 'om' not in nom:
-                    total_percu_global += decimal.Decimal(str(t.montant))
-        solde_net = total_percu_global - total_du_global
-
         if paiements_problematiques:
             total_manquant = decimal.Decimal('0')
             for p in paiements_problematiques:
@@ -2634,6 +2609,8 @@ def creances(request):
                         total_manquant += p['montant_manquant']
 
             tous_biens_str = " / ".join(adresses_biens)
+            biens_releve = _calculer_releve(locataire, request.current_sci)
+            solde_net = sum(bloc['solde_final'] for bloc in biens_releve)
 
             recapitulatif_paiements.append({
                 'locataire': locataire,
@@ -2642,7 +2619,7 @@ def creances(request):
                 'paiements': paiements_problematiques,
                 'total_manquant': total_manquant,
                 'solde_net': solde_net,
-                'biens_releve': _calculer_releve(locataire, request.current_sci),
+                'biens_releve': biens_releve,
             })
 
     context = {
