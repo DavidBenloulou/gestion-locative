@@ -47,14 +47,6 @@
                      aria-labelledby="heading{{ item.locataire.id }}">
                     <div class="accordion-body">
 
-                        <div class="alert alert-info mb-3 py-2">
-                            <i class="fas fa-info-circle me-2"></i>
-                            Édité le {% now "d/m/Y" %} — {{ current_sci.nom }}.
-                            Ce relevé présente mois par mois ce qui était dû et ce qui a été payé depuis le début du bail (à partir du 01/01/2025),
-                            ainsi que le dépôt de garantie et les ordures ménagères annuelles.
-                            Un <span class="text-danger fw-bold">solde négatif</span> indique une dette ; un <span class="text-success fw-bold">solde positif</span> indique un trop-perçu.
-                        </div>
-
                         {% for bloc in item.biens_releve %}
                             <div class="card mb-4">
                                 <div class="card-header d-flex justify-content-between align-items-center">
