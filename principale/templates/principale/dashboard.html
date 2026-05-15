@@ -236,47 +236,63 @@
                 <h5><i class="fas fa-file-export"></i> Exports locataires</h5>
             </div>
             <div class="card-body">
-                <div class="d-flex align-items-end gap-3 flex-wrap">
-                    <div>
-                        <label for="selectLocataireExport" class="form-label mb-1 fw-semibold">Locataire</label>
-                        <select id="selectLocataireExport" class="form-select" style="min-width: 280px;">
-                            <option value="">-- Choisir un locataire --</option>
-                            {% for loc in locataires_actifs %}
-                            <option value="{{ loc.id }}">{{ loc.nom }} {{ loc.prenom }}</option>
-                            {% endfor %}
-                        </select>
+                <!-- Sélecteur locataire commun -->
+                <div class="mb-3">
+                    <label for="selectLocataireExport" class="form-label fw-semibold">Locataire</label>
+                    <select id="selectLocataireExport" class="form-select" style="max-width: 320px;">
+                        <option value="">-- Choisir un locataire --</option>
+                        {% for loc in locataires_actifs %}
+                        <option value="{{ loc.id }}">{{ loc.nom }} {{ loc.prenom }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <!-- Deux encarts côte à côte -->
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="border rounded p-3 h-100">
+                            <h6 class="fw-semibold mb-3"><i class="fas fa-file-invoice text-primary"></i> Générer une quittance</h6>
+                            <div class="d-flex align-items-end gap-2 flex-wrap">
+                                <div>
+                                    <label for="selectMoisQuittance" class="form-label mb-1">Mois</label>
+                                    <select id="selectMoisQuittance" class="form-select form-select-sm">
+                                        <option value="1">Janvier</option>
+                                        <option value="2">Février</option>
+                                        <option value="3">Mars</option>
+                                        <option value="4">Avril</option>
+                                        <option value="5">Mai</option>
+                                        <option value="6">Juin</option>
+                                        <option value="7">Juillet</option>
+                                        <option value="8">Août</option>
+                                        <option value="9">Septembre</option>
+                                        <option value="10">Octobre</option>
+                                        <option value="11">Novembre</option>
+                                        <option value="12">Décembre</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label for="selectAnneeQuittance" class="form-label mb-1">Année</label>
+                                    <select id="selectAnneeQuittance" class="form-select form-select-sm">
+                                        {% for annee in annees_export %}
+                                        <option value="{{ annee }}">{{ annee }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <a id="btnQuittance" href="#" class="btn btn-primary btn-sm disabled">
+                                    <i class="fas fa-print"></i> Créer la quittance
+                                </a>
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        <label for="selectMoisQuittance" class="form-label mb-1 fw-semibold">Mois</label>
-                        <select id="selectMoisQuittance" class="form-select">
-                            <option value="1">Janvier</option>
-                            <option value="2">Février</option>
-                            <option value="3">Mars</option>
-                            <option value="4">Avril</option>
-                            <option value="5">Mai</option>
-                            <option value="6">Juin</option>
-                            <option value="7">Juillet</option>
-                            <option value="8">Août</option>
-                            <option value="9">Septembre</option>
-                            <option value="10">Octobre</option>
-                            <option value="11">Novembre</option>
-                            <option value="12">Décembre</option>
-                        </select>
+                    <div class="col-md-6">
+                        <div class="border rounded p-3 h-100 d-flex flex-column justify-content-between">
+                            <h6 class="fw-semibold mb-3"><i class="fas fa-list-alt text-success"></i> Générer un relevé de compte</h6>
+                            <div>
+                                <a id="btnReleve" href="#" class="btn btn-success btn-sm disabled">
+                                    <i class="fas fa-file-pdf"></i> Télécharger le PDF
+                                </a>
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        <label for="selectAnneeQuittance" class="form-label mb-1 fw-semibold">Année</label>
-                        <select id="selectAnneeQuittance" class="form-select">
-                            {% for annee in annees_export %}
-                            <option value="{{ annee }}">{{ annee }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <a id="btnQuittance" href="#" class="btn btn-outline-primary disabled">
-                        <i class="fas fa-file-invoice"></i> Créer une quittance
-                    </a>
-                    <a id="btnReleve" href="#" class="btn btn-outline-success disabled">
-                        <i class="fas fa-file-pdf"></i> Relevé de compte (PDF)
-                    </a>
                 </div>
             </div>
         </div>
