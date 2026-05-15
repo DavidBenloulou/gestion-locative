@@ -75,7 +75,8 @@ Cette séquence s'applique partout (LOCAL comme CLOUD), sans redemander confirma
 4. `git checkout main && git pull origin main` (⚠️ pull obligatoire à cause du backup auto de 2h)
 5. `git merge develop && git push origin main`
 6. `git checkout develop`
-7. `git branch -d claude/<nom>` puis `git push origin --delete claude/<nom>`
+7. `git branch -d claude/<nom>` (suppression locale uniquement)
+   ⚠️ Ne pas tenter `git push origin --delete claude/<nom>` : le proxy interne de Claude Code bloque la suppression de refs distantes avec un 403 (mesure de sécurité Anthropic, non contournable). La suppression distante est gérée automatiquement par GitHub via l'option "Automatically delete head branches" activée sur le dépôt, qui supprime la branche source dès qu'elle est mergée.
 
 Conditions impératives :
 - Affiche la sortie de chaque commande au fur et à mesure
@@ -514,6 +515,23 @@ git push origin --delete nom-de-branche
 **Les Personal Access Tokens (PAT) expirent** : prévoir un nettoyage régulier dans `https://github.com/settings/tokens`. Le token `Sauvegarde DB-SCI` est sans expiration et sert au backup automatique — ne jamais le supprimer.
 
 **Pour Claude Code, on n'utilise PAS de PAT** : c'est l'app GitHub officielle "Claude" qui gère l'authentification via OAuth. Plus stable, plus sûr.
+
+### Suppression de branches distantes par Claude Code — interdite
+
+Le proxy interne de Claude Code (visible dans les logs sous la forme `http://127.0.0.1:PORT/git/...`) bloque toutes les opérations de suppression de refs distantes avec un 403. C'est un comportement **volontaire** d'Anthropic, pas un bug, pas un problème de permission GitHub, et **pas contournable**. 
+
+Symptôme typique :
+
+```
+$ git push origin --delete claude/<nom>
+error: RPC failed; HTTP 403
+fatal: the remote end hung up unexpectedly
+Everything up-to-date
+```
+
+Diagnostic à ne pas refaire : il est inutile de vérifier les rulesets, les branch protection rules, ou de réinstaller l'app GitHub Claude. Aucun de ces réglages n'est en cause.
+
+Solution adoptée : l'option **"Automatically delete head branches"** est activée sur le dépôt GitHub (Settings → General → Pull Requests). GitHub supprime la branche source automatiquement après merge. Si pour une raison quelconque elle reste, supprimer manuellement via l'onglet Branches du dépôt.
 
 ### Scripts JavaScript et chargement des dépendances
 
