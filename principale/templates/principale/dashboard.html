@@ -246,11 +246,36 @@
                             {% endfor %}
                         </select>
                     </div>
+                    <div>
+                        <label for="selectMoisQuittance" class="form-label mb-1 fw-semibold">Mois</label>
+                        <select id="selectMoisQuittance" class="form-select">
+                            <option value="1">Janvier</option>
+                            <option value="2">Février</option>
+                            <option value="3">Mars</option>
+                            <option value="4">Avril</option>
+                            <option value="5">Mai</option>
+                            <option value="6">Juin</option>
+                            <option value="7">Juillet</option>
+                            <option value="8">Août</option>
+                            <option value="9">Septembre</option>
+                            <option value="10">Octobre</option>
+                            <option value="11">Novembre</option>
+                            <option value="12">Décembre</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="selectAnneeQuittance" class="form-label mb-1 fw-semibold">Année</label>
+                        <select id="selectAnneeQuittance" class="form-select">
+                            {% for annee in annees_export %}
+                            <option value="{{ annee }}">{{ annee }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
                     <a id="btnQuittance" href="#" class="btn btn-outline-primary disabled">
                         <i class="fas fa-file-invoice"></i> Créer une quittance
                     </a>
                     <a id="btnReleve" href="#" class="btn btn-outline-success disabled">
-                        <i class="fas fa-list-alt"></i> Voir le relevé de compte
+                        <i class="fas fa-file-pdf"></i> Relevé de compte (PDF)
                     </a>
                 </div>
             </div>
@@ -263,17 +288,27 @@
 <script>
 (function () {
     var quittanceTpl = "{% url 'generer_quittance' 0 %}";
-    var releveTpl = "{% url 'releve_locataire' 0 %}";
-    var select = document.getElementById('selectLocataireExport');
+    var relevePdfTpl = "{% url 'export_releve_locataire_pdf' 0 %}";
+
+    var selectLoc  = document.getElementById('selectLocataireExport');
+    var selectMois = document.getElementById('selectMoisQuittance');
+    var selectAnnee = document.getElementById('selectAnneeQuittance');
     var btnQ = document.getElementById('btnQuittance');
     var btnR = document.getElementById('btnReleve');
 
-    select.addEventListener('change', function () {
-        var id = this.value;
+    // Pré-sélectionner le mois et l'année courants
+    var now = new Date();
+    selectMois.value = String(now.getMonth() + 1);
+    selectAnnee.value = String(now.getFullYear());
+
+    function updateButtons() {
+        var id = selectLoc.value;
         if (id) {
-            btnQ.href = quittanceTpl.replace('/0/', '/' + id + '/');
+            var mois  = selectMois.value;
+            var annee = selectAnnee.value;
+            btnQ.href = quittanceTpl.replace('/0/', '/' + id + '/') + '?mois=' + mois + '&annee=' + annee;
             btnQ.classList.remove('disabled');
-            btnR.href = releveTpl.replace('/0/', '/' + id + '/');
+            btnR.href = relevePdfTpl.replace('/0/', '/' + id + '/');
             btnR.classList.remove('disabled');
         } else {
             btnQ.href = '#';
@@ -281,7 +316,11 @@
             btnR.href = '#';
             btnR.classList.add('disabled');
         }
-    });
+    }
+
+    selectLoc.addEventListener('change', updateButtons);
+    selectMois.addEventListener('change', updateButtons);
+    selectAnnee.addEventListener('change', updateButtons);
 })();
 </script>
 {% endblock %}
