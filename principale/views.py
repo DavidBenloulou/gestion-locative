@@ -5000,6 +5000,7 @@ def export_releve_locataire_pdf(request, locataire_id):
 
 def export_releve_locataire_excel(request, locataire_id):
     """Génère un fichier Excel du relevé de compte d'un locataire."""
+    import xlsxwriter
     locataire = get_object_or_404(Locataire, id=locataire_id, biens__sci=request.current_sci)
     biens_releve = _calculer_releve(locataire, request.current_sci)
 
