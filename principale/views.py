@@ -17,6 +17,10 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from django.http import Http404, HttpResponse, JsonResponse
 from django.urls import reverse
 
+# ID du type de transaction "RECETTE - Dépôt de garantie" (caution versée).
+# Voir CLAUDE.md §9. Les transactions de caution n'ont pas de mois_concerne.
+TYPE_DEPOT_GARANTIE = 18
+
 
 def dashboard(request):
     """Dashboard optimisé"""
@@ -121,18 +125,19 @@ def detail_bien(request, bien_id):
         date_sortie__isnull=True
     ).select_related('locataire')
 
+    # Précharger toutes les transactions de caution du bien en une seule requête
+    cautions_par_locataire = {}
+    for t in Transaction.objects.filter(
+        bien=bien,
+        type_transaction_id=TYPE_DEPOT_GARANTIE
+    ).order_by('date'):
+        cautions_par_locataire.setdefault(t.locataire_id, []).append(t)
+
     for location in locations_actives:
-        trans_caution = Transaction.objects.filter(
-            locataire=location.locataire,
-            bien=bien,
-            type_transaction_id=18
-        ).order_by('date')
-        total_verse = sum(t.montant for t in trans_caution)
-        nb_versements = trans_caution.count()
-        premiere_date = trans_caution.first().date if trans_caution.exists() else None
-        location.caution_total_verse = total_verse
-        location.caution_nb_versements = nb_versements
-        location.caution_premiere_date = premiere_date
+        trans_caution = cautions_par_locataire.get(location.locataire_id, [])
+        location.caution_total_verse = sum(t.montant for t in trans_caution)
+        location.caution_nb_versements = len(trans_caution)
+        location.caution_premiere_date = trans_caution[0].date if trans_caution else None
 
     # Créer un dict locataire_id -> location pour accès facile dans le template
     locations_par_locataire = {loc.locataire_id: loc for loc in locations_actives}
@@ -216,20 +221,20 @@ def liste_locataires(request):
         'locations__bien'
     ).order_by('nom', 'prenom')
 
+    # Précharger toutes les transactions de caution en une seule requête
+    cautions_par_cle = {}
+    for t in Transaction.objects.filter(
+        type_transaction_id=TYPE_DEPOT_GARANTIE
+    ).order_by('date'):
+        cautions_par_cle.setdefault((t.locataire_id, t.bien_id), []).append(t)
+
     # Enrichir les locations avec les données de caution
     for locataire in locataires:
         for location in locataire.locations.all():
-            trans_caution = Transaction.objects.filter(
-                locataire=locataire,
-                bien=location.bien,
-                type_transaction_id=18
-            ).order_by('date')
-            total_verse = sum(t.montant for t in trans_caution)
-            nb_versements = trans_caution.count()
-            premiere_date = trans_caution.first().date if trans_caution.exists() else None
-            location.caution_total_verse = total_verse
-            location.caution_nb_versements = nb_versements
-            location.caution_premiere_date = premiere_date
+            trans_caution = cautions_par_cle.get((locataire.id, location.bien_id), [])
+            location.caution_total_verse = sum(t.montant for t in trans_caution)
+            location.caution_nb_versements = len(trans_caution)
+            location.caution_premiere_date = trans_caution[0].date if trans_caution else None
 
     return render(request, 'principale/liste_locataires.html', {'locataires': locataires})
 
@@ -275,21 +280,20 @@ def detail_locataire(request, locataire_id):
     date_entree = locataire.date_entree
     annee_debut = date_entree.year if date_entree else annee_courante
     range_annees = range(annee_debut, annee_courante + 1)
+    # Précharger toutes les transactions de caution du locataire en une seule requête
+    cautions_par_bien = {}
+    for t in Transaction.objects.filter(
+        locataire=locataire,
+        type_transaction_id=TYPE_DEPOT_GARANTIE
+    ).order_by('date'):
+        cautions_par_bien.setdefault(t.bien_id, []).append(t)
+
     # Enrichir les locations avec les données de caution
     for location in locations:
-        trans_caution = Transaction.objects.filter(
-            locataire=locataire,
-            bien=location.bien,
-            type_transaction_id=18
-        ).order_by('date')
-        
-        total_verse = sum(t.montant for t in trans_caution)
-        nb_versements = trans_caution.count()
-        premiere_date = trans_caution.first().date if trans_caution.exists() else None
-        
-        location.caution_total_verse = total_verse
-        location.caution_nb_versements = nb_versements
-        location.caution_premiere_date = premiere_date
+        trans_caution = cautions_par_bien.get(location.bien_id, [])
+        location.caution_total_verse = sum(t.montant for t in trans_caution)
+        location.caution_nb_versements = len(trans_caution)
+        location.caution_premiere_date = trans_caution[0].date if trans_caution else None
 
     context = {
         'locataire': locataire,
@@ -1195,13 +1199,13 @@ def etat_paiements(request):
             total_caution_verse = Transaction.objects.filter(
                 locataire=locataire,
                 bien=bien,
-                type_transaction_id=18
+                type_transaction_id=TYPE_DEPOT_GARANTIE
             ).aggregate(total=Sum('montant'))['total'] or 0
 
             nb_transactions_caution = Transaction.objects.filter(
                 locataire=locataire,
                 bien=bien,
-                type_transaction_id=18
+                type_transaction_id=TYPE_DEPOT_GARANTIE
             ).count()
 
             if montant_caution_attendu is None:
@@ -2470,7 +2474,7 @@ def creances(request):
     # 3. Transactions de caution SANS filtre de date (historique complet)
     transactions_caution = Transaction.objects.filter(
         sci=request.current_sci,
-        type_transaction_id=18
+        type_transaction_id=TYPE_DEPOT_GARANTIE
     ).select_related('locataire', 'bien')
 
     # 4. Tous les montants OM attendus (TOUTES les années)
@@ -4722,12 +4726,12 @@ def _calculer_releve(locataire, current_sci):
             trans_idx[cle] = []
         trans_idx[cle].append(t)
 
-    # Caution versée par bien (type_transaction_id=18)
+    # Caution versée par bien
     caution_par_bien = {}
     for row in Transaction.objects.filter(
         sci=current_sci,
         locataire=locataire,
-        type_transaction__id=18,
+        type_transaction__id=TYPE_DEPOT_GARANTIE,
     ).values('bien_id').annotate(total=Sum('montant')):
         caution_par_bien[row['bien_id']] = decimal.Decimal(str(row['total']))
 
