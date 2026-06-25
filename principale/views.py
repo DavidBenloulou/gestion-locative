@@ -3585,7 +3585,14 @@ def export_mouvements_locataires(request):
         bien__sci=request.current_sci,
         date_sortie__gte=date_debut_annee,
         date_sortie__lte=date_fin_annee
-    ).order_by('-date_sortie')
+    ).select_related('bien', 'locataire')
+
+    # Récupérer les locations commencées pendant l'année sélectionnée
+    locations_entrees_annee = LocationBien.objects.filter(
+        bien__sci=request.current_sci,
+        date_entree__gte=date_debut_annee,
+        date_entree__lte=date_fin_annee
+    ).select_related('bien', 'locataire')
 
     # Récupérer les locations actives au 31/12 de l'année sélectionnée
     # (entrées avant ou pendant l'année ET pas encore sorties OU sorties après l'année)
@@ -3595,36 +3602,61 @@ def export_mouvements_locataires(request):
     ).filter(
         Q(date_sortie__isnull=True) |
         Q(date_sortie__gt=date_fin_annee)
-    ).order_by('date_entree')
+    ).select_related('bien', 'locataire')
 
     # Préparer les données pour l'export
     mouvements = []
 
-    # Pour chaque location terminée, recherche si un nouveau locataire a pris la suite
+    # Mémoriser les biens qui ont eu une sortie cette année (pour éviter les doublons)
+    biens_avec_sortie = set()
+
+    # 1. Pour chaque sortie de l'année, recherche si un nouveau locataire a pris la suite
     for location in locations_terminees:
         bien = location.bien
-        locataire = location.locataire
-        date_sortie = location.date_sortie
+        biens_avec_sortie.add(bien.id)
 
-        # Rechercher la location suivante pour ce bien
         nouvelle_location = LocationBien.objects.filter(
             bien=bien,
-            date_entree__gte=date_sortie
+            date_entree__gte=location.date_sortie
         ).order_by('date_entree').first()
 
-        nouveau_locataire = nouvelle_location.locataire if nouvelle_location else None
-
         mouvements.append({
+            'date_mouvement': location.date_sortie,
             'bien': bien,
-            'ancien_locataire': locataire,
+            'ancien_locataire': location.locataire,
             'date_entree': location.date_entree,
-            'date_sortie': date_sortie,
-            'nouveau_locataire': nouveau_locataire,
-            'nouvelle_date_entree': nouvelle_location.date_entree if nouvelle_location else None
+            'date_sortie': location.date_sortie,
+            'nouveau_locataire': nouvelle_location.locataire if nouvelle_location else None,
+            'nouvelle_date_entree': nouvelle_location.date_entree if nouvelle_location else None,
         })
 
-    # Trier les mouvements par date de sortie décroissante
-    mouvements.sort(key=lambda x: x['date_sortie'] or date.today(), reverse=True)
+    # 2. Pour chaque entrée de l'année dans un logement sans sortie cette année (logement vacant)
+    for location in locations_entrees_annee:
+        if location.bien.id not in biens_avec_sortie:
+            mouvements.append({
+                'date_mouvement': location.date_entree,
+                'bien': location.bien,
+                'ancien_locataire': None,
+                'date_entree': None,
+                'date_sortie': None,
+                'nouveau_locataire': location.locataire,
+                'nouvelle_date_entree': location.date_entree,
+            })
+
+    # Trier les mouvements par date du mouvement croissante
+    mouvements.sort(key=lambda x: x['date_mouvement'])
+
+    # Trier les locataires actifs par numéro de bien (ordre naturel : 1, 2, 10, M1, M2…)
+    import re
+    def _sort_key_bien(loc):
+        num = loc.bien.numero or ''
+        m = re.match(r'^([A-Za-z]*)(\d+)$', num)
+        if m:
+            letters, digits = m.groups()
+            return (loc.bien.adresse, letters, int(digits))
+        return (loc.bien.adresse, num, 0)
+
+    locations_actives = sorted(locations_actives, key=_sort_key_bien)
 
     # Préparer le contexte
     context = {
@@ -3797,15 +3829,23 @@ def generer_excel_mouvements_locataires(request, context):
         bien_label = f"{m['bien'].numero_formate} - {m['bien'].adresse}" if m['bien'].numero else m['bien'].adresse
         worksheet.write(row, 0, bien_label, left_format)
         worksheet.write(row, 1, m['bien'].get_type_bien_display(), cell_format)
-        worksheet.write(row, 2, f"{m['ancien_locataire'].nom} {m['ancien_locataire'].prenom}", left_format)
 
-        if m['ancien_locataire'].date_naissance:
-            worksheet.write_datetime(row, 3, m['ancien_locataire'].date_naissance, date_format)
+        if m['ancien_locataire']:
+            worksheet.write(row, 2, f"{m['ancien_locataire'].nom} {m['ancien_locataire'].prenom}", left_format)
+            if m['ancien_locataire'].date_naissance:
+                worksheet.write_datetime(row, 3, m['ancien_locataire'].date_naissance, date_format)
+            else:
+                worksheet.write(row, 3, "-", cell_format)
+            worksheet.write(row, 4, m['ancien_locataire'].lieu_naissance or "-", left_format)
         else:
+            worksheet.write(row, 2, "Vacant", left_format)
             worksheet.write(row, 3, "-", cell_format)
+            worksheet.write(row, 4, "-", left_format)
 
-        worksheet.write(row, 4, m['ancien_locataire'].lieu_naissance or "-", left_format)
-        worksheet.write_datetime(row, 5, m['date_entree'], date_format)
+        if m['date_entree']:
+            worksheet.write_datetime(row, 5, m['date_entree'], date_format)
+        else:
+            worksheet.write(row, 5, "-", cell_format)
 
         if m['date_sortie']:
             worksheet.write_datetime(row, 6, m['date_sortie'], date_format)
@@ -3814,7 +3854,6 @@ def generer_excel_mouvements_locataires(request, context):
 
         if m['nouveau_locataire']:
             worksheet.write(row, 7, f"{m['nouveau_locataire'].nom} {m['nouveau_locataire'].prenom}", left_format)
-
             if m['nouvelle_date_entree']:
                 worksheet.write_datetime(row, 8, m['nouvelle_date_entree'], date_format)
             else:
@@ -3970,14 +4009,27 @@ def generer_pdf_mouvements_locataires(request, context):
 
         for m in context['mouvements']:
             bien_label = f"{m['bien'].numero_formate} - {m['bien'].adresse}" if m['bien'].numero else m['bien'].adresse
+            if m['ancien_locataire']:
+                ancien_nom = f"{m['ancien_locataire'].nom} {m['ancien_locataire'].prenom}"
+                ancien_naissance = m['ancien_locataire'].date_naissance.strftime('%d/%m/%Y') if m['ancien_locataire'].date_naissance else '-'
+                ancien_lieu = m['ancien_locataire'].lieu_naissance or '-'
+                ancien_entree = m['date_entree'].strftime('%d/%m/%Y') if m['date_entree'] else '-'
+                ancien_sortie = m['date_sortie'].strftime('%d/%m/%Y') if m['date_sortie'] else '-'
+            else:
+                ancien_nom = 'Vacant'
+                ancien_naissance = '-'
+                ancien_lieu = '-'
+                ancien_entree = '-'
+                ancien_sortie = '-'
+
             row = [
                 Paragraph(bien_label, left_style),
                 Paragraph(f"{m['bien'].get_type_bien_display()}", cell_style),
-                Paragraph(f"{m['ancien_locataire'].nom} {m['ancien_locataire'].prenom}", left_style),
-                Paragraph(f"{m['ancien_locataire'].date_naissance.strftime('%d/%m/%Y') if m['ancien_locataire'].date_naissance else '-'}", cell_style),
-                Paragraph(f"{m['ancien_locataire'].lieu_naissance or '-'}", left_style),
-                Paragraph(f"{m['date_entree'].strftime('%d/%m/%Y')}", cell_style),
-                Paragraph(f"{m['date_sortie'].strftime('%d/%m/%Y') if m['date_sortie'] else '-'}", cell_style)
+                Paragraph(ancien_nom, left_style),
+                Paragraph(ancien_naissance, cell_style),
+                Paragraph(ancien_lieu, left_style),
+                Paragraph(ancien_entree, cell_style),
+                Paragraph(ancien_sortie, cell_style),
             ]
 
             if m['nouveau_locataire']:
