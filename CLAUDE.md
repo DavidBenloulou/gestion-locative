@@ -76,15 +76,23 @@ Cette séquence s'applique partout (LOCAL comme CLOUD), sans redemander confirma
 5. `git merge develop && git push origin main`
 6. `git checkout develop`
 7. `git branch -d claude/<nom>` (suppression locale uniquement)
-   ⚠️ Ne pas tenter `git push origin --delete claude/<nom>` : le proxy interne de Claude Code bloque la suppression de refs distantes avec un 403 (mesure de sécurité Anthropic, non contournable). La suppression distante est gérée automatiquement par GitHub via l'option "Automatically delete head branches" activée sur le dépôt, qui supprime la branche source dès qu'elle est mergée.
+   ⚠️ Ne pas tenter `git push origin --delete claude/<nom>` depuis Claude Code : le proxy interne bloque cette opération avec un 403. La suppression distante se fait manuellement par David depuis Git Bash (voir étape E).
 
 Conditions impératives :
 - Affiche la sortie de chaque commande au fur et à mesure
 - En cas de conflit, d'erreur ou de comportement inattendu : **arrêt immédiat**, affichage du problème, attente de validation explicite avant toute action corrective
 - La suppression de branche (étape 7) ne se fait QUE si la branche source s'appelle `claude/<quelque-chose>`. Pour une branche au nom différent, demander confirmation avant suppression.
 
-**Étape E — Donner la procédure PythonAnywhere**
-Seule étape manuelle restante : la console PythonAnywhere n'est accessible que par moi. Donne-moi la séquence à exécuter :
+**Étape E — Donner les procédures manuelles (Git Bash local + PythonAnywhere)**
+Deux blocs manuels à exécuter dans l'ordre :
+
+**Bloc 1 — Git Bash local (suppression de la branche distante)** :
+```bash
+git push origin --delete claude/<nom>
+```
+(David peut le faire depuis Git Bash sur son PC — pas de contrainte de proxy côté local.)
+
+**Bloc 2 — Console PythonAnywhere** :
 ```
 cd ~/Gestion\ locative/gestion_locations
 git pull
