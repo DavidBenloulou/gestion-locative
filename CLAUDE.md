@@ -76,15 +76,23 @@ Cette séquence s'applique partout (LOCAL comme CLOUD), sans redemander confirma
 5. `git merge develop && git push origin main`
 6. `git checkout develop`
 7. `git branch -d claude/<nom>` (suppression locale uniquement)
-   ⚠️ Ne pas tenter `git push origin --delete claude/<nom>` : le proxy interne de Claude Code bloque la suppression de refs distantes avec un 403 (mesure de sécurité Anthropic, non contournable). La suppression distante est gérée automatiquement par GitHub via l'option "Automatically delete head branches" activée sur le dépôt, qui supprime la branche source dès qu'elle est mergée.
+   ⚠️ Ne pas tenter `git push origin --delete claude/<nom>` depuis Claude Code : le proxy interne bloque cette opération avec un 403. La suppression distante se fait manuellement par David depuis Git Bash (voir étape E).
 
 Conditions impératives :
 - Affiche la sortie de chaque commande au fur et à mesure
 - En cas de conflit, d'erreur ou de comportement inattendu : **arrêt immédiat**, affichage du problème, attente de validation explicite avant toute action corrective
 - La suppression de branche (étape 7) ne se fait QUE si la branche source s'appelle `claude/<quelque-chose>`. Pour une branche au nom différent, demander confirmation avant suppression.
 
-**Étape E — Donner la procédure PythonAnywhere**
-Seule étape manuelle restante : la console PythonAnywhere n'est accessible que par moi. Donne-moi la séquence à exécuter :
+**Étape E — Donner les procédures manuelles (Git Bash local + PythonAnywhere)**
+Deux blocs manuels à exécuter dans l'ordre :
+
+**Bloc 1 — Git Bash local (suppression de la branche distante)** :
+```bash
+git push origin --delete claude/<nom>
+```
+(David peut le faire depuis Git Bash sur son PC — pas de contrainte de proxy côté local.)
+
+**Bloc 2 — Console PythonAnywhere** :
 ```
 cd ~/Gestion\ locative/gestion_locations
 git pull
@@ -309,6 +317,15 @@ CommentaireCreance     # Commentaires sur les créances
   est_mois_arrivee = (d.year == location.date_entree.year and d.month == location.date_entree.month)
   loyer_du = location.montant_loyer_premier_mois if (est_mois_arrivee and location.montant_loyer_premier_mois is not None) else bien.loyer_mensuel
   ```
+
+### Report de solde antérieur à 2025 (juillet 2026)
+- Migration : `0018_locationbien_commentaire_report_anterieur_and_more`
+- Champs ajoutés sur `LocationBien` :
+  - `solde_report_anterieur` (nullable, default None) — **positif = trop-perçu (crédit)**, **négatif = dette**
+  - `commentaire_report_anterieur` (texte libre, optionnel, pour noter l'origine du montant)
+- **Objectif** : la comptabilité démarre au 01/01/2025, mais certains locataires avaient déjà une dette ou un trop-perçu avant cette date. Ce champ permet de reporter ce solde initial pour que le solde cumulé affiché dans l'onglet Créances soit juste.
+- **Fonctionnement** : dans `_calculer_releve()` (`views.py`), si ce champ est renseigné et non nul, une ligne `type: 'report_anterieur'` ("Report antérieur à 2025") est ajoutée en tout premier (avant la ligne caution), et `solde_cumule` démarre à cette valeur au lieu de 0. Répercuté automatiquement dans l'onglet Créances, le relevé de compte détaillé, et les exports PDF/Excel (les 3 endroits qui distinguent déjà les lignes `caution`/`om` ont été étendus avec ce nouveau type).
+- **UI** : champs visibles uniquement en modification d'un logement existant (`formulaire_location_bien.html`), pas à la création.
 
 ### Transactions Travaux + SCI (bug corrigé mai 2026)
 - Une transaction de type "travaux" cochée "Transaction liée à la SCI" peut avoir un bien associé (par exemple : facture de chaudière payée par la SCI mais affectée à un appartement précis)
@@ -547,6 +564,7 @@ Solution adoptée : l'option **"Automatically delete head branches"** est activ�
 - **Mai 2026 (jour 6)** : refonte de la vue Créances — le dépliage d'un locataire affiche désormais son relevé de compte complet en inline (au lieu du tableau résumé Type/Période/Statut). Ajout des boutons Export PDF et Export Excel par locataire. Suppression du calcul de solde redondant dans `creances` : le solde de l'en-tête est maintenant dérivé de `_calculer_releve()` pour être cohérent avec le relevé affiché. Nouvelle vue `export_releve_locataire_excel` et URL `locataires/<id>/releve/excel/`.
 - **Mai 2026 (jour 8)** : passe d'optimisation perf — suppression de l'effet N+1 sur la caution dans `liste_locataires`, `detail_bien`, `detail_locataire` (4 requêtes par location → 1 requête préchargée puis regroupement en mémoire par clé `(locataire_id, bien_id)`). Introduction de la constante `TYPE_DEPOT_GARANTIE = 18` dans `views.py`. **Leçon** : un rapport d'analyse automatique signale parfois des `if montant:` comme des bugs alors qu'ils sont voulus (ex. caution de 0 € = pas de créance) ou sans effet (soustraction de 0) — toujours relire le contexte avant de "corriger".
 - **Mai 2026 (jour 7)** : élucidation du 403 sur la suppression de branches distantes. Le blocage vient du proxy interne de Claude Code (mesure de sécurité Anthropic), pas de GitHub. Désinstallation/réinstallation de l'app sans effet — c'est attendu. Activation de l'option "Automatically delete head branches" sur GitHub pour que la suppression distante se fasse automatiquement après merge. CLAUDE.md mis à jour pour éviter à toute session future de refaire le même diagnostic.
+- **Juillet 2026** : ajout du "report de solde antérieur à 2025" (migration 0018) — champ `solde_report_anterieur` sur `LocationBien` permettant de reporter une dette ou un trop-perçu antérieur au démarrage de la comptabilité, sous forme de première ligne du relevé de compte (Créances, relevé détaillé, exports PDF/Excel).
 
 ### Modules Python — installation locale
 

@@ -78,7 +78,21 @@
                                             </thead>
                                             <tbody>
                                                 {% for ligne in bloc.lignes %}
-                                                    {% if ligne.type == 'caution' %}
+                                                    {% if ligne.type == 'report_anterieur' %}
+                                                    <tr style="background-color: #f0eefc; border-top: 2px solid #6f42c1;">
+                                                        <td><i class="fas fa-history me-1" style="color:#6f42c1;"></i><strong>{{ ligne.mois_label }}</strong></td>
+                                                        <td class="text-end">—</td>
+                                                        <td class="text-end">—</td>
+                                                        <td class="text-end">—</td>
+                                                        <td class="text-end">—</td>
+                                                        <td class="text-end fw-bold {% if ligne.ecart < 0 %}text-danger{% elif ligne.ecart > 0 %}text-success{% endif %}">
+                                                            {% if ligne.ecart > 0 %}+{% endif %}{{ ligne.ecart|euros }}
+                                                        </td>
+                                                        <td class="text-end fw-bold {% if ligne.solde_cumule < 0 %}text-danger{% elif ligne.solde_cumule > 0 %}text-success{% endif %}">
+                                                            {% if ligne.solde_cumule > 0 %}+{% endif %}{{ ligne.solde_cumule|euros }}
+                                                        </td>
+                                                    </tr>
+                                                    {% elif ligne.type == 'caution' %}
                                                     <tr style="background-color: #e8f4fd; border-top: 2px solid #0d6efd;">
                                                         <td><i class="fas fa-shield-alt me-1 text-primary"></i><strong>{{ ligne.mois_label }}</strong></td>
                                                         <td class="text-end text-primary">{{ ligne.loyer_du|euros }}</td>

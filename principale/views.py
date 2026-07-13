@@ -4823,6 +4823,21 @@ def _calculer_releve(locataire, current_sci):
         lignes = []
         solde_cumule = decimal.Decimal('0')
 
+        # Ligne de report de solde antérieur à 2025 (si renseignée)
+        if location.solde_report_anterieur is not None and location.solde_report_anterieur != 0:
+            report = decimal.Decimal(str(location.solde_report_anterieur))
+            solde_cumule += report
+            lignes.append({
+                'type': 'report_anterieur',
+                'mois_label': 'Report antérieur à 2025',
+                'loyer_du': decimal.Decimal('0'),
+                'charges_dues': decimal.Decimal('0'),
+                'loyer_paye': decimal.Decimal('0'),
+                'charges_payees': decimal.Decimal('0'),
+                'ecart': report,
+                'solde_cumule': solde_cumule,
+            })
+
         # Ligne caution (première ligne, toujours affichée)
         # Priorité : bien.montant_caution, puis location.montant_caution en repli
         _caution_ref = bien.montant_caution if bien.montant_caution is not None else location.montant_caution
@@ -4987,7 +5002,17 @@ def export_releve_locataire_pdf(request, locataire_id):
         for ligne in bloc['lignes']:
             ecart_str = fmt(ligne['ecart'])
             solde_str = fmt(ligne['solde_cumule'])
-            if ligne['type'] in ('caution', 'om'):
+            if ligne['type'] == 'report_anterieur':
+                data.append([
+                    Paragraph(f"<b>{ligne['mois_label']}</b>", cell_c),
+                    Paragraph('—', cell_c),
+                    Paragraph('—', cell_c),
+                    Paragraph('—', cell_c),
+                    Paragraph('—', cell_c),
+                    Paragraph(ecart_str, cell_r),
+                    Paragraph(solde_str, cell_r),
+                ])
+            elif ligne['type'] in ('caution', 'om'):
                 data.append([
                     Paragraph(f"<b>{ligne['mois_label']}</b>", cell_c),
                     Paragraph(fmt(ligne['loyer_du']), cell_r),
@@ -5038,7 +5063,10 @@ def export_releve_locataire_pdf(request, locataire_id):
         ])
         # Colorer les lignes selon le type et l'écart
         for i, ligne in enumerate(bloc['lignes'], start=1):
-            if ligne['type'] == 'caution':
+            if ligne['type'] == 'report_anterieur':
+                ts.add('BACKGROUND', (0, i), (-1, i), colors.Color(0.94, 0.93, 0.99))
+                ts.add('LINEABOVE', (0, i), (-1, i), 1.5, colors.Color(0.44, 0.26, 0.76))
+            elif ligne['type'] == 'caution':
                 ts.add('BACKGROUND', (0, i), (-1, i), colors.Color(0.88, 0.94, 1.0))
                 ts.add('LINEABOVE', (0, i), (-1, i), 1.5, colors.Color(0.05, 0.43, 0.99))
             elif ligne['type'] == 'om':
@@ -5074,6 +5102,9 @@ def export_releve_locataire_excel(request, locataire_id):
     fmt_header = workbook.add_format({'bold': True, 'bg_color': '#D9D9D9', 'border': 1, 'align': 'center', 'valign': 'vcenter', 'text_wrap': True})
     fmt_section = workbook.add_format({'bold': True, 'font_size': 11, 'bg_color': '#EBF3FB', 'border': 1})
     fmt_total = workbook.add_format({'bold': True, 'bg_color': '#E8E8E8', 'border': 1, 'num_format': '# ##0.00 €'})
+    fmt_report = workbook.add_format({'bg_color': '#F0EEFC', 'border': 1, 'num_format': '# ##0.00 €', 'bold': True})
+    fmt_report_lbl = workbook.add_format({'bg_color': '#F0EEFC', 'border': 1, 'bold': True})
+    fmt_dash_report = workbook.add_format({'bg_color': '#F0EEFC', 'border': 1, 'align': 'center', 'bold': True})
     fmt_caution = workbook.add_format({'bg_color': '#DCE9F9', 'border': 1, 'num_format': '# ##0.00 €', 'bold': True})
     fmt_caution_lbl = workbook.add_format({'bg_color': '#DCE9F9', 'border': 1, 'bold': True})
     fmt_om = workbook.add_format({'bg_color': '#FFF8E1', 'border': 1, 'num_format': '# ##0.00 €', 'bold': True})
@@ -5116,7 +5147,15 @@ def export_releve_locataire_excel(request, locataire_id):
             t = ligne['type']
             ecart = float(ligne['ecart'])
 
-            if t == 'caution':
+            if t == 'report_anterieur':
+                ws.write(row, 0, ligne['mois_label'], fmt_report_lbl)
+                ws.write(row, 1, '—', fmt_dash_report)
+                ws.write(row, 2, '—', fmt_dash_report)
+                ws.write(row, 3, '—', fmt_dash_report)
+                ws.write(row, 4, '—', fmt_dash_report)
+                ws.write(row, 5, float(ligne['ecart']), fmt_report)
+                ws.write(row, 6, float(ligne['solde_cumule']), fmt_report)
+            elif t == 'caution':
                 ws.write(row, 0, ligne['mois_label'], fmt_caution_lbl)
                 ws.write(row, 1, float(ligne['loyer_du']), fmt_caution)
                 ws.write(row, 2, '—', fmt_dash_caution)

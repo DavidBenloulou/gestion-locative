@@ -215,6 +215,15 @@ class LocationBien(models.Model):
         max_digits=10, decimal_places=2, null=True, blank=True,
         verbose_name="Charges 1er mois (prorata convenu)"
     )
+    solde_report_anterieur = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        verbose_name="Report de solde antérieur à 2025",
+        help_text="Positif = trop-perçu (crédit), négatif = dette"
+    )
+    commentaire_report_anterieur = models.CharField(
+        max_length=255, blank=True, null=True,
+        verbose_name="Commentaire sur le report antérieur"
+    )
 
     class Meta:
         verbose_name = "Location de bien"
