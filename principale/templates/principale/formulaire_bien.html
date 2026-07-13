@@ -73,6 +73,17 @@
                     {% endif %}
                 </div>
             </div>
+            {% if bien %}
+                {% if location_active %}
+                    {% include "principale/_revisions_loyer_table.html" with location=location_active retour='bien' bien_id=bien.id %}
+                {% else %}
+                    <hr>
+                    <p class="text-muted small mb-3">
+                        Aucun locataire actif sur ce logement pour le moment — le loyer/charges ci-dessus s'appliqueront tels quels au prochain locataire.
+                    </p>
+                {% endif %}
+            {% endif %}
+
             <div class="d-flex justify-content-between mt-4">
                 <a href="{% url 'liste_biens' %}" class="btn btn-secondary">
                     <i class="fas fa-arrow-left"></i> Retour

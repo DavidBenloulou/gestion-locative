@@ -1,6 +1,6 @@
 from django import forms
 from django.core.exceptions import ValidationError
-from .models import Bien, Locataire, Transaction, LocationBien, TypeTransaction
+from .models import Bien, Locataire, Transaction, LocationBien, TypeTransaction, RevisionLoyer
 
 class BienForm(forms.ModelForm):
     class Meta:
@@ -324,3 +324,15 @@ class LocationBienForm(forms.ModelForm):
             if locations_actives.exists():
                 raise forms.ValidationError("Ce bien est déjà occupé.")
         return bien
+
+
+class RevisionLoyerForm(forms.ModelForm):
+    class Meta:
+        model = RevisionLoyer
+        fields = ['date_effet', 'nouveau_loyer', 'nouvelles_charges', 'commentaire']
+        widgets = {
+            'date_effet': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'nouveau_loyer': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0'}),
+            'nouvelles_charges': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0'}),
+            'commentaire': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex : Indexation IRL 2027'}),
+        }

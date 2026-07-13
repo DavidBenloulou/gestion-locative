@@ -111,6 +111,8 @@
             </div>
             {% endif %}
 
+            {% include "principale/_revisions_loyer_table.html" with location=location retour='location' %}
+
             <div class="d-flex justify-content-between mt-4">
                 {% if locataire %}
                     <a href="{% url 'detail_locataire' locataire.id %}" class="btn btn-secondary">

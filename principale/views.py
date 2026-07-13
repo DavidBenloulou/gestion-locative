@@ -1,8 +1,8 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.db.models import Sum, Q
 from django.contrib import messages
-from .models import Bien, Locataire, Transaction, ParametresComptables, ParametresSCI, LocationBien, MontantOM
-from .forms import BienForm, LocataireForm, TransactionForm, LocationBienForm
+from .models import Bien, Locataire, Transaction, ParametresComptables, ParametresSCI, LocationBien, MontantOM, RevisionLoyer
+from .forms import BienForm, LocataireForm, TransactionForm, LocationBienForm, RevisionLoyerForm
 from datetime import date, datetime
 import calendar
 import io
@@ -20,6 +20,58 @@ from django.urls import reverse
 # ID du type de transaction "RECETTE - Dépôt de garantie" (caution versée).
 # Voir CLAUDE.md §9. Les transactions de caution n'ont pas de mois_concerne.
 TYPE_DEPOT_GARANTIE = 18
+
+
+def get_loyer_charges_bien(location, bien, annee, mois, revisions=None):
+    """Loyer/charges (Decimal) applicables pour (annee, mois), en tenant compte des
+    révisions de loyer (RevisionLoyer) de la location, sinon les valeurs du bien.
+    Ne tient PAS compte du prorata du premier mois (voir get_loyer_charges_effectifs).
+    `revisions` peut être fourni pré-chargée (ex. via prefetch_related) pour éviter une requête."""
+    premier_jour_mois = date(annee, mois, 1)
+    if revisions is None:
+        revisions = list(location.revisions_loyer.all())
+
+    revision_applicable = None
+    for r in revisions:
+        r_mois = r.date_effet.replace(day=1)
+        if r_mois <= premier_jour_mois and (revision_applicable is None or r_mois > revision_applicable.date_effet.replace(day=1)):
+            revision_applicable = r
+
+    if revision_applicable:
+        loyer = decimal.Decimal(str(revision_applicable.nouveau_loyer))
+        charges = decimal.Decimal(str(revision_applicable.nouvelles_charges)) if revision_applicable.nouvelles_charges is not None else decimal.Decimal('0')
+        return loyer, charges
+
+    loyer = decimal.Decimal(str(bien.loyer_mensuel or 0))
+    charges = decimal.Decimal(str(bien.montant_charges)) if bien.montant_charges is not None else decimal.Decimal('0')
+    return loyer, charges
+
+
+def get_loyer_charges_effectifs(location, bien, annee, mois, revisions=None):
+    """Loyer/charges (Decimal) applicables pour (annee, mois) : priorité au prorata du
+    premier mois si c'est le mois d'arrivée, sinon get_loyer_charges_bien (révisions/bien)."""
+    if (location.date_entree and annee == location.date_entree.year
+            and mois == location.date_entree.month
+            and location.montant_loyer_premier_mois is not None):
+        loyer = decimal.Decimal(str(location.montant_loyer_premier_mois))
+        charges = decimal.Decimal(str(location.montant_charges_premier_mois)) if location.montant_charges_premier_mois is not None else decimal.Decimal('0')
+        return loyer, charges
+
+    return get_loyer_charges_bien(location, bien, annee, mois, revisions=revisions)
+
+
+def synchroniser_revision_loyer_bien(bien):
+    """Quand le loyer/charges de base du bien sont modifiés depuis sa propre fiche,
+    enregistre automatiquement une révision datée d'aujourd'hui pour chaque location
+    active de ce bien, pour que l'historique reste cohérent avec la fiche du bien."""
+    aujourd_hui = date.today()
+    for location in bien.locations.filter(date_sortie__isnull=True):
+        revision = location.revisions_loyer.filter(date_effet=aujourd_hui).first()
+        if not revision:
+            revision = RevisionLoyer(location=location, date_effet=aujourd_hui)
+        revision.nouveau_loyer = bien.loyer_mensuel or 0
+        revision.nouvelles_charges = bien.montant_charges
+        revision.save()
 
 
 def dashboard(request):
@@ -180,11 +232,16 @@ def ajouter_bien(request):
 def modifier_bien(request, bien_id):
     """Vue pour modifier un bien existant"""
     bien = get_object_or_404(Bien, id=bien_id, sci=request.current_sci)  # Vérifier que le bien appartient à la SCI active
+    location_active = bien.locations.filter(date_sortie__isnull=True).select_related('locataire').prefetch_related('revisions_loyer').first()
 
     if request.method == 'POST':
+        ancien_loyer = bien.loyer_mensuel
+        ancien_charges = bien.montant_charges
         form = BienForm(request.POST, instance=bien)
         if form.is_valid():
             bien = form.save()
+            if bien.loyer_mensuel != ancien_loyer or bien.montant_charges != ancien_charges:
+                synchroniser_revision_loyer_bien(bien)
             messages.success(request, f"Le bien a été modifié avec succès.")
             return redirect('detail_bien', bien_id=bien.id)
     else:
@@ -193,7 +250,8 @@ def modifier_bien(request, bien_id):
     return render(request, 'principale/formulaire_bien.html', {
         'form': form,
         'titre': f'Modifier le bien : {bien.adresse}',
-        'bien': bien
+        'bien': bien,
+        'location_active': location_active,
     })
 
 def supprimer_bien(request, bien_id):
@@ -1190,10 +1248,12 @@ def etat_paiements(request):
                 locataire=locataire,
                 bien=bien,
                 date_sortie__isnull=True
-            ).first()
+            ).select_related('bien').prefetch_related('revisions_loyer').first()
 
             if not location:
                 continue
+
+            revisions_location = list(location.revisions_loyer.all())
 
             montant_caution_attendu = bien.montant_caution
             total_caution_verse = Transaction.objects.filter(
@@ -1258,8 +1318,9 @@ def etat_paiements(request):
                 total_loyer_paye = sum(p.montant for p in paiements_loyer) + sum(p.montant for p in remboursements_retard)
                 total_charges_paye = sum(p.montant for p in paiements_charges)
 
-                loyer_mensuel = bien.loyer_mensuel or 0
-                montant_charges = bien.montant_charges if bien.montant_charges is not None else 0
+                loyer_mensuel_dec, montant_charges_dec = get_loyer_charges_bien(location, bien, annee_courante, mois_courant, revisions=revisions_location)
+                loyer_mensuel = float(loyer_mensuel_dec)
+                montant_charges = float(montant_charges_dec)
 
                 if location.date_entree and location.date_entree <= premier_jour_mois_courant:
                     if total_loyer_paye >= loyer_mensuel and loyer_mensuel > 0:
@@ -1301,8 +1362,9 @@ def etat_paiements(request):
                 total_charges_paye = 0
                 loyer_status = "N/A (non présent)"
                 charges_status = "N/A (non présent)"
-                loyer_mensuel = bien.loyer_mensuel or 0
-                montant_charges = bien.montant_charges if bien.montant_charges is not None else 0
+                loyer_mensuel_dec, montant_charges_dec = get_loyer_charges_bien(location, bien, annee_courante, mois_courant, revisions=revisions_location)
+                loyer_mensuel = float(loyer_mensuel_dec)
+                montant_charges = float(montant_charges_dec)
 
             mois_verifies = []
             for i in range(1, 4):
@@ -1353,10 +1415,10 @@ def etat_paiements(request):
                     total_loyer_prec = sum(p.montant for p in paiements_loyer_prec)
                     total_charges_prec = sum(p.montant for p in paiements_charges_prec)
 
-                    # Pour le mois d'arrivée, utiliser le prorata convenu si renseigné
-                    est_mois_arrivee_prec = (location.date_entree and annee_a_verifier == location.date_entree.year and mois_a_verifier == location.date_entree.month)
-                    loyer_attendu_prec = float(location.montant_loyer_premier_mois) if (est_mois_arrivee_prec and location.montant_loyer_premier_mois is not None) else loyer_mensuel
-                    charges_attendues_prec = float(location.montant_charges_premier_mois) if (est_mois_arrivee_prec and location.montant_charges_premier_mois is not None) else montant_charges
+                    # Loyer/charges applicables à ce mois précis (prorata premier mois ou révision de loyer)
+                    loyer_attendu_prec_dec, charges_attendues_prec_dec = get_loyer_charges_effectifs(location, bien, annee_a_verifier, mois_a_verifier, revisions=revisions_location)
+                    loyer_attendu_prec = float(loyer_attendu_prec_dec)
+                    charges_attendues_prec = float(charges_attendues_prec_dec)
 
                     if total_loyer_prec >= loyer_attendu_prec and loyer_attendu_prec > 0:
                         loyer_status_prec = "OK"
@@ -2446,7 +2508,7 @@ def creances(request):
         for loc in LocationBien.objects.filter(
             bien__sci=request.current_sci,
             date_sortie__isnull=True
-        ).select_related('bien', 'locataire')
+        ).select_related('bien', 'locataire').prefetch_related('revisions_loyer')
     }
 
     # 2. Toutes les transactions RECETTE depuis 2025 pour la SCI
@@ -2531,8 +2593,7 @@ def creances(request):
 
             if location.date_entree:
                 date_debut_verification = max(location.date_entree, date_debut_logiciel)
-                loyer_mensuel = bien.loyer_mensuel or 0
-                montant_charges = bien.montant_charges if bien.montant_charges is not None else 0
+                revisions_location = list(location.revisions_loyer.all())
 
                 date_courante = date_debut_verification
                 while date_courante <= date_aujourd_hui:
@@ -2550,10 +2611,10 @@ def creances(request):
                         elif 'loyer' in nom_lower or 'caf' in nom_lower or 'retard loyer' in nom_lower:
                             total_loyer_paye += t.montant
 
-                    # Pour le mois d'arrivée, utiliser le prorata convenu si renseigné
-                    est_mois_arrivee = (annee_v == location.date_entree.year and mois_v == location.date_entree.month)
-                    loyer_attendu_mois = float(location.montant_loyer_premier_mois) if (est_mois_arrivee and location.montant_loyer_premier_mois is not None) else loyer_mensuel
-                    charges_attendues_mois = float(location.montant_charges_premier_mois) if (est_mois_arrivee and location.montant_charges_premier_mois is not None) else montant_charges
+                    # Loyer/charges applicables à ce mois précis (prorata premier mois ou révision de loyer)
+                    loyer_attendu_mois_dec, charges_attendues_mois_dec = get_loyer_charges_effectifs(location, bien, annee_v, mois_v, revisions=revisions_location)
+                    loyer_attendu_mois = float(loyer_attendu_mois_dec)
+                    charges_attendues_mois = float(charges_attendues_mois_dec)
 
                     if total_loyer_paye < loyer_attendu_mois and loyer_attendu_mois > 0:
                         statut = "Partiel" if total_loyer_paye > 0 else "Non payé"
@@ -2752,6 +2813,90 @@ def supprimer_location_bien(request, location_id):
         'id_retour': locataire.id
     })
 
+def _redirect_apres_revision(request, location):
+    """Renvoie vers la page bien ou vers la page location, selon d'où l'action a été lancée
+    (paramètres ?retour=bien&bien_id=... conservés dans l'URL par les formulaires sans action=)."""
+    retour = request.GET.get('retour')
+    bien_id = request.GET.get('bien_id')
+    if retour == 'bien' and bien_id:
+        return redirect('modifier_bien', bien_id=bien_id)
+    return redirect('modifier_location_bien', location_id=location.id)
+
+def ajouter_revision_loyer(request, location_id):
+    location = get_object_or_404(LocationBien, id=location_id, bien__sci=request.current_sci)
+    retour = request.GET.get('retour', 'location')
+    bien_id_retour = request.GET.get('bien_id')
+
+    if request.method == 'POST':
+        form = RevisionLoyerForm(request.POST)
+        if form.is_valid():
+            revision = form.save(commit=False)
+            revision.location = location
+            revision.save()
+            messages.success(request, "La révision de loyer a été ajoutée avec succès.")
+            return _redirect_apres_revision(request, location)
+    else:
+        today = date.today()
+        loyer_actuel, charges_actuelles = get_loyer_charges_effectifs(location, location.bien, today.year, today.month)
+        form = RevisionLoyerForm(initial={
+            'nouveau_loyer': loyer_actuel,
+            'nouvelles_charges': charges_actuelles,
+        })
+
+    return render(request, 'principale/formulaire_revision_loyer.html', {
+        'form': form,
+        'location': location,
+        'titre': f"Ajouter une révision de loyer — {location.locataire.nom} {location.locataire.prenom}",
+        'retour': retour,
+        'bien_id_retour': bien_id_retour,
+    })
+
+def modifier_revision_loyer(request, revision_id):
+    revision = get_object_or_404(RevisionLoyer, id=revision_id, location__bien__sci=request.current_sci)
+    location = revision.location
+    retour = request.GET.get('retour', 'location')
+    bien_id_retour = request.GET.get('bien_id')
+
+    if request.method == 'POST':
+        form = RevisionLoyerForm(request.POST, instance=revision)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "La révision de loyer a été modifiée avec succès.")
+            return _redirect_apres_revision(request, location)
+    else:
+        form = RevisionLoyerForm(instance=revision)
+
+    return render(request, 'principale/formulaire_revision_loyer.html', {
+        'form': form,
+        'location': location,
+        'titre': f"Modifier la révision de loyer — {location.locataire.nom} {location.locataire.prenom}",
+        'retour': retour,
+        'bien_id_retour': bien_id_retour,
+    })
+
+def supprimer_revision_loyer(request, revision_id):
+    revision = get_object_or_404(RevisionLoyer, id=revision_id, location__bien__sci=request.current_sci)
+    location = revision.location
+    retour = request.GET.get('retour')
+    bien_id_retour = request.GET.get('bien_id')
+
+    if request.method == 'POST':
+        revision.delete()
+        messages.success(request, "La révision de loyer a été supprimée avec succès.")
+        return _redirect_apres_revision(request, location)
+
+    if retour == 'bien' and bien_id_retour:
+        url_retour, id_retour = 'modifier_bien', bien_id_retour
+    else:
+        url_retour, id_retour = 'modifier_location_bien', location.id
+
+    return render(request, 'principale/confirmer_suppression.html', {
+        'objet': f"la révision de loyer du {revision.date_effet.strftime('%d/%m/%Y')} ({revision.nouveau_loyer} €) pour {location.locataire.nom} {location.locataire.prenom}",
+        'type_objet': 'révision de loyer',
+        'url_retour': url_retour,
+        'id_retour': id_retour
+    })
+
 def get_biens_locataire(request, locataire_id):
     try:
         locataire = Locataire.objects.get(id=locataire_id)
@@ -2811,10 +2956,12 @@ def apercu_impression_creances(request):
                 locataire=locataire,
                 bien=bien,
                 date_sortie__isnull=True
-            ).first()
+            ).prefetch_related('revisions_loyer').first()
 
             if not location:
                 continue
+
+            revisions_location = list(location.revisions_loyer.all())
 
             # Vérifier la caution — uniquement si un montant est défini
             if not getattr(location, 'date_versement_caution', None):
@@ -2849,13 +2996,14 @@ def apercu_impression_creances(request):
                     7: 'Juillet', 8: 'Août', 9: 'Septembre', 10: 'Octobre', 11: 'Novembre', 12: 'Décembre'
                 }
 
-                loyer_mensuel = bien.loyer_mensuel or 0
-                montant_charges = bien.montant_charges if bien.montant_charges is not None else 0
-
                 date_courante = date_debut_verification
                 while date_courante <= date_fin:
                     mois_a_verifier = date_courante.month
                     annee_a_verifier = date_courante.year
+
+                    loyer_mensuel_dec, montant_charges_dec = get_loyer_charges_effectifs(location, bien, annee_a_verifier, mois_a_verifier, revisions=revisions_location)
+                    loyer_mensuel = float(loyer_mensuel_dec)
+                    montant_charges = float(montant_charges_dec)
 
                     paiements_loyer = Transaction.objects.filter(
                         locataire=locataire,
@@ -4807,7 +4955,7 @@ def _calculer_releve(locataire, current_sci):
     locations = LocationBien.objects.filter(
         locataire=locataire,
         bien__sci=current_sci,
-    ).select_related('bien').order_by('date_entree')
+    ).select_related('bien').prefetch_related('revisions_loyer').order_by('date_entree')
 
     biens_releve = []
     for location in locations:
@@ -4816,9 +4964,7 @@ def _calculer_releve(locataire, current_sci):
             continue
         date_debut = max(location.date_entree, date_debut_logiciel)
         date_fin = location.date_sortie if location.date_sortie else date_aujourd_hui
-
-        loyer_mensuel = decimal.Decimal(str(bien.loyer_mensuel or 0))
-        charges_mensuelles = decimal.Decimal(str(bien.montant_charges if bien.montant_charges is not None else 0))
+        revisions_location = list(location.revisions_loyer.all())
 
         lignes = []
         solde_cumule = decimal.Decimal('0')
@@ -4870,10 +5016,8 @@ def _calculer_releve(locataire, current_sci):
                 else:
                     loyer_paye += decimal.Decimal(str(t.montant))
 
-            # Pour le mois d'arrivée, utiliser le prorata convenu si renseigné
-            est_mois_arrivee = (d.year == location.date_entree.year and d.month == location.date_entree.month)
-            loyer_du_mois = decimal.Decimal(str(location.montant_loyer_premier_mois)) if (est_mois_arrivee and location.montant_loyer_premier_mois is not None) else loyer_mensuel
-            charges_dues_mois = decimal.Decimal(str(location.montant_charges_premier_mois)) if (est_mois_arrivee and location.montant_charges_premier_mois is not None) else charges_mensuelles
+            # Loyer/charges applicables à ce mois précis (prorata premier mois ou révision de loyer)
+            loyer_du_mois, charges_dues_mois = get_loyer_charges_effectifs(location, bien, d.year, d.month, revisions=revisions_location)
 
             du_mois = loyer_du_mois + charges_dues_mois
             paye_mois = loyer_paye + charges_payees

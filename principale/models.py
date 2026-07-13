@@ -245,6 +245,24 @@ class LocationBien(models.Model):
     def __str__(self):
         return f"{self.locataire} - {self.bien}"
 
+class RevisionLoyer(models.Model):
+    """Modèle pour historiser les changements de loyer/charges en cours de bail
+    (ex : indexation annuelle), sans attendre un changement de locataire."""
+    location = models.ForeignKey(LocationBien, on_delete=models.CASCADE, related_name='revisions_loyer')
+    date_effet = models.DateField(verbose_name="Date d'effet")
+    nouveau_loyer = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Nouveau loyer hors charges")
+    nouvelles_charges = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="Nouvelles charges")
+    commentaire = models.CharField(max_length=255, blank=True, null=True, verbose_name="Commentaire")
+
+    class Meta:
+        ordering = ['date_effet']
+        verbose_name = "Révision de loyer"
+        verbose_name_plural = "Révisions de loyer"
+
+    def __str__(self):
+        return f"{self.location} - à partir du {self.date_effet}"
+
+
 class MontantOM(models.Model):
     sci = models.ForeignKey('SCI', on_delete=models.CASCADE, related_name='montants_om')
     locataire = models.ForeignKey('Locataire', on_delete=models.CASCADE, related_name='montants_om')
