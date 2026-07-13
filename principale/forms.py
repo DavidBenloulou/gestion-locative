@@ -241,7 +241,8 @@ class LocationBienForm(forms.ModelForm):
         model = LocationBien
         fields = [
             'bien', 'date_entree', 'date_sortie',
-            'montant_loyer_premier_mois', 'montant_charges_premier_mois'
+            'montant_loyer_premier_mois', 'montant_charges_premier_mois',
+            'solde_report_anterieur', 'commentaire_report_anterieur',
         ]
         widgets = {
             'bien': forms.Select(attrs={'class': 'form-select'}),
@@ -249,6 +250,8 @@ class LocationBienForm(forms.ModelForm):
             'date_sortie': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
             'montant_loyer_premier_mois': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0'}),
             'montant_charges_premier_mois': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0'}),
+            'solde_report_anterieur': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'commentaire_report_anterieur': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex : Dette locative 2023-2024'}),
         }
 
     def __init__(self, *args, **kwargs):
