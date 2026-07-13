@@ -60,6 +60,20 @@ def get_loyer_charges_effectifs(location, bien, annee, mois, revisions=None):
     return get_loyer_charges_bien(location, bien, annee, mois, revisions=revisions)
 
 
+def synchroniser_revision_loyer_bien(bien):
+    """Quand le loyer/charges de base du bien sont modifiés depuis sa propre fiche,
+    enregistre automatiquement une révision datée d'aujourd'hui pour chaque location
+    active de ce bien, pour que l'historique reste cohérent avec la fiche du bien."""
+    aujourd_hui = date.today()
+    for location in bien.locations.filter(date_sortie__isnull=True):
+        revision = location.revisions_loyer.filter(date_effet=aujourd_hui).first()
+        if not revision:
+            revision = RevisionLoyer(location=location, date_effet=aujourd_hui)
+        revision.nouveau_loyer = bien.loyer_mensuel or 0
+        revision.nouvelles_charges = bien.montant_charges
+        revision.save()
+
+
 def dashboard(request):
     """Dashboard optimisé"""
     # Filtrer par SCI active
@@ -218,11 +232,16 @@ def ajouter_bien(request):
 def modifier_bien(request, bien_id):
     """Vue pour modifier un bien existant"""
     bien = get_object_or_404(Bien, id=bien_id, sci=request.current_sci)  # Vérifier que le bien appartient à la SCI active
+    location_active = bien.locations.filter(date_sortie__isnull=True).select_related('locataire').prefetch_related('revisions_loyer').first()
 
     if request.method == 'POST':
+        ancien_loyer = bien.loyer_mensuel
+        ancien_charges = bien.montant_charges
         form = BienForm(request.POST, instance=bien)
         if form.is_valid():
             bien = form.save()
+            if bien.loyer_mensuel != ancien_loyer or bien.montant_charges != ancien_charges:
+                synchroniser_revision_loyer_bien(bien)
             messages.success(request, f"Le bien a été modifié avec succès.")
             return redirect('detail_bien', bien_id=bien.id)
     else:
@@ -231,7 +250,8 @@ def modifier_bien(request, bien_id):
     return render(request, 'principale/formulaire_bien.html', {
         'form': form,
         'titre': f'Modifier le bien : {bien.adresse}',
-        'bien': bien
+        'bien': bien,
+        'location_active': location_active,
     })
 
 def supprimer_bien(request, bien_id):
@@ -2793,8 +2813,19 @@ def supprimer_location_bien(request, location_id):
         'id_retour': locataire.id
     })
 
+def _redirect_apres_revision(request, location):
+    """Renvoie vers la page bien ou vers la page location, selon d'où l'action a été lancée
+    (paramètres ?retour=bien&bien_id=... conservés dans l'URL par les formulaires sans action=)."""
+    retour = request.GET.get('retour')
+    bien_id = request.GET.get('bien_id')
+    if retour == 'bien' and bien_id:
+        return redirect('modifier_bien', bien_id=bien_id)
+    return redirect('modifier_location_bien', location_id=location.id)
+
 def ajouter_revision_loyer(request, location_id):
     location = get_object_or_404(LocationBien, id=location_id, bien__sci=request.current_sci)
+    retour = request.GET.get('retour', 'location')
+    bien_id_retour = request.GET.get('bien_id')
 
     if request.method == 'POST':
         form = RevisionLoyerForm(request.POST)
@@ -2803,7 +2834,7 @@ def ajouter_revision_loyer(request, location_id):
             revision.location = location
             revision.save()
             messages.success(request, "La révision de loyer a été ajoutée avec succès.")
-            return redirect('modifier_location_bien', location_id=location.id)
+            return _redirect_apres_revision(request, location)
     else:
         today = date.today()
         loyer_actuel, charges_actuelles = get_loyer_charges_effectifs(location, location.bien, today.year, today.month)
@@ -2816,18 +2847,22 @@ def ajouter_revision_loyer(request, location_id):
         'form': form,
         'location': location,
         'titre': f"Ajouter une révision de loyer — {location.locataire.nom} {location.locataire.prenom}",
+        'retour': retour,
+        'bien_id_retour': bien_id_retour,
     })
 
 def modifier_revision_loyer(request, revision_id):
     revision = get_object_or_404(RevisionLoyer, id=revision_id, location__bien__sci=request.current_sci)
     location = revision.location
+    retour = request.GET.get('retour', 'location')
+    bien_id_retour = request.GET.get('bien_id')
 
     if request.method == 'POST':
         form = RevisionLoyerForm(request.POST, instance=revision)
         if form.is_valid():
             form.save()
             messages.success(request, "La révision de loyer a été modifiée avec succès.")
-            return redirect('modifier_location_bien', location_id=location.id)
+            return _redirect_apres_revision(request, location)
     else:
         form = RevisionLoyerForm(instance=revision)
 
@@ -2835,22 +2870,31 @@ def modifier_revision_loyer(request, revision_id):
         'form': form,
         'location': location,
         'titre': f"Modifier la révision de loyer — {location.locataire.nom} {location.locataire.prenom}",
+        'retour': retour,
+        'bien_id_retour': bien_id_retour,
     })
 
 def supprimer_revision_loyer(request, revision_id):
     revision = get_object_or_404(RevisionLoyer, id=revision_id, location__bien__sci=request.current_sci)
     location = revision.location
+    retour = request.GET.get('retour')
+    bien_id_retour = request.GET.get('bien_id')
 
     if request.method == 'POST':
         revision.delete()
         messages.success(request, "La révision de loyer a été supprimée avec succès.")
-        return redirect('modifier_location_bien', location_id=location.id)
+        return _redirect_apres_revision(request, location)
+
+    if retour == 'bien' and bien_id_retour:
+        url_retour, id_retour = 'modifier_bien', bien_id_retour
+    else:
+        url_retour, id_retour = 'modifier_location_bien', location.id
 
     return render(request, 'principale/confirmer_suppression.html', {
         'objet': f"la révision de loyer du {revision.date_effet.strftime('%d/%m/%Y')} ({revision.nouveau_loyer} €) pour {location.locataire.nom} {location.locataire.prenom}",
         'type_objet': 'révision de loyer',
-        'url_retour': 'modifier_location_bien',
-        'id_retour': location.id
+        'url_retour': url_retour,
+        'id_retour': id_retour
     })
 
 def get_biens_locataire(request, locataire_id):

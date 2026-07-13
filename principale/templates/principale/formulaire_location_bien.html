@@ -111,53 +111,7 @@
             </div>
             {% endif %}
 
-            {% if location %}
-            <hr>
-            <h6 class="mb-3">
-                <i class="fas fa-euro-sign"></i> Révisions de loyer/charges en cours de bail
-            </h6>
-            <p class="text-muted small mb-3">
-                Pour augmenter le loyer ou les charges à une date donnée sans attendre un changement de locataire
-                (ex : indexation annuelle), ajoutez une révision ci-dessous : le nouveau montant s'appliquera
-                automatiquement à partir du mois choisi dans les créances, l'état des paiements et le relevé de compte.
-            </p>
-            {% if location.revisions_loyer.all %}
-            <table class="table table-sm table-bordered mb-3">
-                <thead>
-                    <tr>
-                        <th>À partir du</th>
-                        <th>Nouveau loyer</th>
-                        <th>Nouvelles charges</th>
-                        <th>Commentaire</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for revision in location.revisions_loyer.all %}
-                    <tr>
-                        <td>{{ revision.date_effet|date:"d/m/Y" }}</td>
-                        <td>{{ revision.nouveau_loyer|euros }}</td>
-                        <td>{{ revision.nouvelles_charges|euros }}</td>
-                        <td>{{ revision.commentaire|default:"" }}</td>
-                        <td class="text-end">
-                            <a href="{% url 'modifier_revision_loyer' revision.id %}" class="btn btn-sm btn-warning" title="Modifier">
-                                <i class="fas fa-edit"></i>
-                            </a>
-                            <a href="{% url 'supprimer_revision_loyer' revision.id %}" class="btn btn-sm btn-danger" title="Supprimer">
-                                <i class="fas fa-trash"></i>
-                            </a>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-            {% else %}
-            <p class="text-muted small mb-3">Aucune révision enregistrée pour l'instant.</p>
-            {% endif %}
-            <a href="{% url 'ajouter_revision_loyer' location.id %}" class="btn btn-sm btn-outline-primary mb-3">
-                <i class="fas fa-plus"></i> Ajouter une révision de loyer
-            </a>
-            {% endif %}
+            {% include "principale/_revisions_loyer_table.html" with location=location retour='location' %}
 
             <div class="d-flex justify-content-between mt-4">
                 {% if locataire %}

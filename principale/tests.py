@@ -4,7 +4,7 @@ from datetime import date
 from django.test import TestCase
 
 from .models import SCI, Bien, Locataire, LocationBien, RevisionLoyer
-from .views import get_loyer_charges_effectifs
+from .views import get_loyer_charges_effectifs, synchroniser_revision_loyer_bien
 
 
 class GetLoyerChargesEffectifsTests(TestCase):
@@ -75,3 +75,54 @@ class GetLoyerChargesEffectifsTests(TestCase):
         loyer, charges = get_loyer_charges_effectifs(location, location.bien, 2025, 6)
         self.assertEqual(loyer, decimal.Decimal('250'))
         self.assertEqual(charges, decimal.Decimal('25'))
+
+
+class SynchroniserRevisionLoyerBienTests(TestCase):
+    def setUp(self):
+        self.sci = SCI.objects.create(
+            nom="SCI Test", adresse="1 rue Test", code_postal="80000", ville="Amiens",
+            representants="Test", titre_representants="Gérant"
+        )
+        self.bien = Bien.objects.create(
+            sci=self.sci, type_bien='LOGEMENT', adresse="1 rue du bien",
+            code_postal="80000", ville="Amiens", loyer_mensuel=decimal.Decimal('500'),
+            montant_charges=decimal.Decimal('50'),
+        )
+        self.locataire = Locataire.objects.create(nom="Dupont", prenom="Jean", sci=self.sci)
+        self.location = LocationBien.objects.create(
+            locataire=self.locataire, bien=self.bien, date_entree=date(2025, 1, 1)
+        )
+
+    def test_cree_une_revision_du_jour_pour_la_location_active(self):
+        self.bien.loyer_mensuel = decimal.Decimal('550')
+        self.bien.montant_charges = decimal.Decimal('55')
+        self.bien.save()
+        synchroniser_revision_loyer_bien(self.bien)
+
+        revisions = list(self.location.revisions_loyer.all())
+        self.assertEqual(len(revisions), 1)
+        self.assertEqual(revisions[0].date_effet, date.today())
+        self.assertEqual(revisions[0].nouveau_loyer, decimal.Decimal('550'))
+        self.assertEqual(revisions[0].nouvelles_charges, decimal.Decimal('55'))
+
+    def test_appel_repete_le_meme_jour_met_a_jour_au_lieu_de_dupliquer(self):
+        self.bien.loyer_mensuel = decimal.Decimal('550')
+        self.bien.save()
+        synchroniser_revision_loyer_bien(self.bien)
+
+        self.bien.loyer_mensuel = decimal.Decimal('575')
+        self.bien.save()
+        synchroniser_revision_loyer_bien(self.bien)
+
+        revisions = list(self.location.revisions_loyer.all())
+        self.assertEqual(len(revisions), 1)
+        self.assertEqual(revisions[0].nouveau_loyer, decimal.Decimal('575'))
+
+    def test_locataire_sorti_n_est_pas_affecte(self):
+        self.location.date_sortie = date(2025, 12, 31)
+        self.location.save()
+        self.bien.loyer_mensuel = decimal.Decimal('550')
+        self.bien.save()
+        synchroniser_revision_loyer_bien(self.bien)
+
+        self.assertEqual(self.location.revisions_loyer.count(), 0)

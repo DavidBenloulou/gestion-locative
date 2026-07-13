@@ -49,7 +49,7 @@
             </div>
 
             <div class="d-flex justify-content-between mt-4">
-                <a href="{% url 'modifier_location_bien' location.id %}" class="btn btn-secondary">
+                <a href="{% if retour == 'bien' %}{% url 'modifier_bien' bien_id_retour %}{% else %}{% url 'modifier_location_bien' location.id %}{% endif %}" class="btn btn-secondary">
                     <i class="fas fa-arrow-left"></i> Retour
                 </a>
                 <button type="submit" class="btn btn-primary">
