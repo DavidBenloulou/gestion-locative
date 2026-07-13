@@ -286,9 +286,12 @@
                     <div class="col-md-6">
                         <div class="border rounded p-3 h-100 d-flex flex-column justify-content-between">
                             <h6 class="fw-semibold mb-3"><i class="fas fa-list-alt text-success"></i> Générer un relevé de compte</h6>
-                            <div>
+                            <div class="d-flex gap-2">
                                 <a id="btnReleve" href="#" class="btn btn-success btn-sm disabled">
                                     <i class="fas fa-file-pdf"></i> Télécharger le PDF
+                                </a>
+                                <a id="btnReleveExcel" href="#" class="btn btn-outline-success btn-sm disabled">
+                                    <i class="fas fa-file-excel"></i> Télécharger Excel
                                 </a>
                             </div>
                         </div>
@@ -305,12 +308,14 @@
 (function () {
     var quittanceTpl = "{% url 'generer_quittance' 0 %}";
     var relevePdfTpl = "{% url 'export_releve_locataire_pdf' 0 %}";
+    var releveExcelTpl = "{% url 'export_releve_locataire_excel' 0 %}";
 
     var selectLoc  = document.getElementById('selectLocataireExport');
     var selectMois = document.getElementById('selectMoisQuittance');
     var selectAnnee = document.getElementById('selectAnneeQuittance');
     var btnQ = document.getElementById('btnQuittance');
     var btnR = document.getElementById('btnReleve');
+    var btnRExcel = document.getElementById('btnReleveExcel');
 
     // Pré-sélectionner le mois et l'année courants
     var now = new Date();
@@ -326,11 +331,15 @@
             btnQ.classList.remove('disabled');
             btnR.href = relevePdfTpl.replace('/0/', '/' + id + '/');
             btnR.classList.remove('disabled');
+            btnRExcel.href = releveExcelTpl.replace('/0/', '/' + id + '/');
+            btnRExcel.classList.remove('disabled');
         } else {
             btnQ.href = '#';
             btnQ.classList.add('disabled');
             btnR.href = '#';
             btnR.classList.add('disabled');
+            btnRExcel.href = '#';
+            btnRExcel.classList.add('disabled');
         }
     }
 
