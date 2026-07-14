@@ -236,7 +236,9 @@ def supprimer_bien(request, bien_id):
 
 def liste_locataires(request):
     """Vue pour la liste des locataires - OPTIMISÉE"""
-    afficher_tous = request.GET.get('tous') == '1'
+    filtre = request.GET.get('filtre', 'actifs')
+    if filtre not in ('actifs', 'anciens', 'tous'):
+        filtre = 'actifs'
     annee_courante = date.today().year
 
     locataires = Locataire.objects.filter(
@@ -262,21 +264,32 @@ def liste_locataires(request):
             location.caution_nb_versements = len(trans_caution)
             location.caution_premiere_date = trans_caution[0].date if trans_caution else None
 
-    if not afficher_tous:
+    def est_actif(locataire):
+        """Au moins une location sans date de sortie -- utilise le cache prefetch"""
+        return any(location.date_sortie is None for location in locataire.locations.all())
+
+    if filtre == 'anciens':
+        # Uniquement les locataires ayant au moins une location, toutes terminées
+        locataires = [
+            locataire for locataire in locataires
+            if locataire.locations.all() and not est_actif(locataire)
+        ]
+    elif filtre == 'actifs':
         def garder_locataire(locataire):
             """Garde les locataires actifs et ceux sortis dans l'année en cours"""
             locations = list(locataire.locations.all())  # utilise le cache prefetch, pas de requête
             if not locations:
                 return True
-            if any(location.date_sortie is None for location in locations):
+            if est_actif(locataire):
                 return True
             return max(location.date_sortie for location in locations).year == annee_courante
 
         locataires = [locataire for locataire in locataires if garder_locataire(locataire)]
+    # filtre == 'tous' : aucun filtrage supplémentaire
 
     return render(request, 'principale/liste_locataires.html', {
         'locataires': locataires,
-        'afficher_tous': afficher_tous,
+        'filtre': filtre,
         'annee_courante': annee_courante,
     })
 
@@ -337,6 +350,10 @@ def detail_locataire(request, locataire_id):
         location.caution_nb_versements = len(trans_caution)
         location.caution_premiere_date = trans_caution[0].date if trans_caution else None
 
+    # Solde du relevé de compte (tous biens confondus, actifs ou fermés) pour affichage
+    biens_releve = _calculer_releve(locataire, request.current_sci)
+    solde_total = sum(bloc['solde_final'] for bloc in biens_releve)
+
     context = {
         'locataire': locataire,
         'biens': biens,
@@ -344,6 +361,8 @@ def detail_locataire(request, locataire_id):
         'transactions': transactions,
         'range_annees': range_annees,
         'annee_courante': annee_courante,
+        'biens_releve': biens_releve,
+        'solde_total': solde_total,
     }
     return render(request, 'principale/detail_locataire.html', context)
 

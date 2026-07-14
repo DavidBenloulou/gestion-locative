@@ -183,6 +183,50 @@
                     Aucun logement n'est associé à ce locataire.
                 </div>
             {% endif %}
+
+            {% if biens_releve %}
+                <hr>
+                <div class="d-flex justify-content-between align-items-center">
+                    <strong>Solde global du locataire :</strong>
+                    {% if solde_total < 0 %}
+                        <span class="badge bg-danger fs-6">{{ solde_total|euros }} (dette)</span>
+                    {% elif solde_total > 0 %}
+                        <span class="badge bg-success fs-6">+{{ solde_total|euros }} (trop-perçu)</span>
+                    {% else %}
+                        <span class="badge bg-secondary fs-6">0,00 € (à jour)</span>
+                    {% endif %}
+                </div>
+                {% if biens_releve|length > 1 %}
+                    <table class="table table-sm mt-2 mb-0">
+                        <tbody>
+                            {% for bloc in biens_releve %}
+                                <tr>
+                                    <td>
+                                        {{ bloc.bien.get_type_bien_display }}
+                                        {% if bloc.bien.numero %} — {{ bloc.bien.numero_formate }}{% endif %}
+                                        — {{ bloc.bien.adresse }}
+                                        {% if bloc.location.date_sortie %}<span class="text-muted">(sorti le {{ bloc.location.date_sortie|date:"d/m/Y" }})</span>{% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        {% if bloc.solde_final < 0 %}
+                                            <span class="text-danger fw-bold">{{ bloc.solde_final|euros }}</span>
+                                        {% elif bloc.solde_final > 0 %}
+                                            <span class="text-success fw-bold">+{{ bloc.solde_final|euros }}</span>
+                                        {% else %}
+                                            <span class="text-muted">0,00 €</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% endif %}
+                <div class="mt-2">
+                    <a href="{% url 'releve_locataire' locataire_id=locataire.id %}" class="btn btn-sm btn-outline-secondary">
+                        <i class="fas fa-file-invoice-dollar"></i> Voir le relevé de compte détaillé
+                    </a>
+                </div>
+            {% endif %}
         </div>
     </div>
 </div>
