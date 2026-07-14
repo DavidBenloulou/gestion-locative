@@ -3,6 +3,13 @@ from django.db.models import Sum, Q
 from django.contrib import messages
 from .models import Bien, Locataire, Transaction, ParametresComptables, ParametresSCI, LocationBien, MontantOM, RevisionLoyer
 from .forms import BienForm, LocataireForm, TransactionForm, LocationBienForm, RevisionLoyerForm
+from .services import (
+    TYPE_DEPOT_GARANTIE,
+    get_loyer_charges_bien,
+    get_loyer_charges_effectifs,
+    _calculer_releve,
+    locations_ouvertes,
+)
 from datetime import date, datetime
 import calendar
 import io
@@ -17,49 +24,6 @@ from reportlab.lib.units import cm
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from django.http import Http404, HttpResponse, JsonResponse
 from django.urls import reverse
-
-# ID du type de transaction "RECETTE - Dépôt de garantie" (caution versée).
-# Voir CLAUDE.md §9. Les transactions de caution n'ont pas de mois_concerne.
-TYPE_DEPOT_GARANTIE = 18
-
-
-def get_loyer_charges_bien(location, bien, annee, mois, revisions=None):
-    """Loyer/charges (Decimal) applicables pour (annee, mois), en tenant compte des
-    révisions de loyer (RevisionLoyer) de la location, sinon les valeurs du bien.
-    Ne tient PAS compte du prorata du premier mois (voir get_loyer_charges_effectifs).
-    `revisions` peut être fourni pré-chargée (ex. via prefetch_related) pour éviter une requête."""
-    premier_jour_mois = date(annee, mois, 1)
-    if revisions is None:
-        revisions = list(location.revisions_loyer.all())
-
-    revision_applicable = None
-    for r in revisions:
-        r_mois = r.date_effet.replace(day=1)
-        if r_mois <= premier_jour_mois and (revision_applicable is None or r_mois > revision_applicable.date_effet.replace(day=1)):
-            revision_applicable = r
-
-    if revision_applicable:
-        loyer = decimal.Decimal(str(revision_applicable.nouveau_loyer))
-        charges = decimal.Decimal(str(revision_applicable.nouvelles_charges)) if revision_applicable.nouvelles_charges is not None else decimal.Decimal('0')
-        return loyer, charges
-
-    loyer = decimal.Decimal(str(bien.loyer_mensuel or 0))
-    charges = decimal.Decimal(str(bien.montant_charges)) if bien.montant_charges is not None else decimal.Decimal('0')
-    return loyer, charges
-
-
-def get_loyer_charges_effectifs(location, bien, annee, mois, revisions=None):
-    """Loyer/charges (Decimal) applicables pour (annee, mois) : priorité au prorata du
-    premier mois si c'est le mois d'arrivée, sinon get_loyer_charges_bien (révisions/bien)."""
-    if (location.date_entree and annee == location.date_entree.year
-            and mois == location.date_entree.month
-            and location.montant_loyer_premier_mois is not None):
-        loyer = decimal.Decimal(str(location.montant_loyer_premier_mois))
-        charges = decimal.Decimal(str(location.montant_charges_premier_mois)) if location.montant_charges_premier_mois is not None else decimal.Decimal('0')
-        return loyer, charges
-
-    return get_loyer_charges_bien(location, bien, annee, mois, revisions=revisions)
-
 
 def synchroniser_revision_loyer_bien(bien):
     """Quand le loyer/charges de base du bien sont modifiés depuis sa propre fiche,
@@ -272,6 +236,11 @@ def supprimer_bien(request, bien_id):
 
 def liste_locataires(request):
     """Vue pour la liste des locataires - OPTIMISÉE"""
+    filtre = request.GET.get('filtre', 'actifs')
+    if filtre not in ('actifs', 'anciens', 'tous'):
+        filtre = 'actifs'
+    annee_courante = date.today().year
+
     locataires = Locataire.objects.filter(
         sci=request.current_sci
     ).prefetch_related(
@@ -295,7 +264,34 @@ def liste_locataires(request):
             location.caution_nb_versements = len(trans_caution)
             location.caution_premiere_date = trans_caution[0].date if trans_caution else None
 
-    return render(request, 'principale/liste_locataires.html', {'locataires': locataires})
+    def est_actif(locataire):
+        """Au moins une location sans date de sortie -- utilise le cache prefetch"""
+        return any(location.date_sortie is None for location in locataire.locations.all())
+
+    if filtre == 'anciens':
+        # Uniquement les locataires ayant au moins une location, toutes terminées
+        locataires = [
+            locataire for locataire in locataires
+            if locataire.locations.all() and not est_actif(locataire)
+        ]
+    elif filtre == 'actifs':
+        def garder_locataire(locataire):
+            """Garde les locataires actifs et ceux sortis dans l'année en cours"""
+            locations = list(locataire.locations.all())  # utilise le cache prefetch, pas de requête
+            if not locations:
+                return True
+            if est_actif(locataire):
+                return True
+            return max(location.date_sortie for location in locations).year == annee_courante
+
+        locataires = [locataire for locataire in locataires if garder_locataire(locataire)]
+    # filtre == 'tous' : aucun filtrage supplémentaire
+
+    return render(request, 'principale/liste_locataires.html', {
+        'locataires': locataires,
+        'filtre': filtre,
+        'annee_courante': annee_courante,
+    })
 
 def detail_locataire(request, locataire_id):
     """Vue pour le détail d'un locataire - OPTIMISÉE"""
@@ -354,6 +350,10 @@ def detail_locataire(request, locataire_id):
         location.caution_nb_versements = len(trans_caution)
         location.caution_premiere_date = trans_caution[0].date if trans_caution else None
 
+    # Solde du relevé de compte (tous biens confondus, actifs ou fermés) pour affichage
+    biens_releve = _calculer_releve(locataire, request.current_sci)
+    solde_total = sum(bloc['solde_final'] for bloc in biens_releve)
+
     context = {
         'locataire': locataire,
         'biens': biens,
@@ -361,6 +361,8 @@ def detail_locataire(request, locataire_id):
         'transactions': transactions,
         'range_annees': range_annees,
         'annee_courante': annee_courante,
+        'biens_releve': biens_releve,
+        'solde_total': solde_total,
     }
     return render(request, 'principale/detail_locataire.html', context)
 
@@ -925,8 +927,10 @@ def ajouter_transaction(request):
                         bien_specifique = cleaned_data.get('bien_specifique')
                         if bien_specifique:
                             transaction.bien = bien_specifique
-                        elif transaction.locataire.biens.exists():
-                            transaction.bien = transaction.locataire.biens.first()
+                        else:
+                            biens_ouverts = [bloc['bien'] for bloc in locations_ouvertes(transaction.locataire, current_sci)]
+                            if biens_ouverts:
+                                transaction.bien = biens_ouverts[0]
 
                 # Sauvegarder la transaction (1 seule requête SQL optimisée)
                 transaction.save()
@@ -1030,8 +1034,10 @@ def modifier_transaction(request, transaction_id):
                         bien_specifique = cleaned_data.get('bien_specifique')
                         if bien_specifique:
                             transaction.bien = bien_specifique
-                        elif transaction.locataire.biens.exists():
-                            transaction.bien = transaction.locataire.biens.first()
+                        else:
+                            biens_ouverts = [bloc['bien'] for bloc in locations_ouvertes(transaction.locataire, request.current_sci)]
+                            if biens_ouverts:
+                                transaction.bien = biens_ouverts[0]
 
                 # Sauvegarder (1 seule requête SQL optimisée)
                 transaction.save()
@@ -2483,222 +2489,95 @@ def exporter_bilan_detaille_pdf(request):
     return response
 
 def creances(request):
-    """Vue pour afficher l'état des paiements des locataires - VERSION OPTIMISÉE"""
+    """Vue pour afficher l'état des paiements des locataires.
+
+    Un locataire apparaît s'il a au moins un bien en cours (location active avec
+    un solde non nul), ou un bien quitté qui n'est pas encore soldé (créance ou
+    trop-perçu résiduel, ou caution due non restituée) -- qu'il soit encore
+    présent dans la SCI ou totalement parti. Une location fermée et soldée (ou
+    clôturée manuellement) n'est plus affichée ici ni proposée dans le formulaire
+    de transaction (voir services.locations_ouvertes)."""
     locataires = Locataire.objects.filter(
-        biens__sci=request.current_sci,
-        locations__date_sortie__isnull=True
-    ).distinct().order_by('nom', 'prenom').prefetch_related('biens')
+        biens__sci=request.current_sci
+    ).distinct().order_by('nom', 'prenom')
 
     recapitulatif_paiements = []
 
-    date_aujourd_hui = date.today()
-    date_debut_logiciel = date(2025, 1, 1)
-
-    noms_mois_fr = {
-        1: 'Janvier', 2: 'Février', 3: 'Mars', 4: 'Avril', 5: 'Mai', 6: 'Juin',
-        7: 'Juillet', 8: 'Août', 9: 'Septembre', 10: 'Octobre', 11: 'Novembre', 12: 'Décembre'
-    }
-
-    # ====================================================================
-    # OPTIMISATION : Charger TOUTES les données en quelques requêtes
-    # ====================================================================
-
-    # 1. Toutes les locations actives de la SCI
-    toutes_locations = {
-        (loc.locataire_id, loc.bien_id): loc
-        for loc in LocationBien.objects.filter(
-            bien__sci=request.current_sci,
-            date_sortie__isnull=True
-        ).select_related('bien', 'locataire').prefetch_related('revisions_loyer')
-    }
-
-    # 2. Toutes les transactions RECETTE depuis 2025 pour la SCI
-    toutes_transactions = Transaction.objects.filter(
-        sci=request.current_sci,
-        type_transaction__categorie='RECETTE',
-        mois_concerne__gte=date_debut_logiciel
-    ).select_related('type_transaction', 'locataire', 'bien')
-
-    # Organiser les transactions par (locataire_id, bien_id, annee, mois)
-    # ET par (locataire_id, bien_id) pour le solde net global
-    transactions_par_cle = {}
-    transactions_par_locataire_bien = {}
-    for t in toutes_transactions:
-        if t.locataire_id and t.bien_id and t.mois_concerne:
-            cle = (t.locataire_id, t.bien_id, t.mois_concerne.year, t.mois_concerne.month)
-            if cle not in transactions_par_cle:
-                transactions_par_cle[cle] = []
-            transactions_par_cle[cle].append(t)
-            cle_lb = (t.locataire_id, t.bien_id)
-            if cle_lb not in transactions_par_locataire_bien:
-                transactions_par_locataire_bien[cle_lb] = []
-            transactions_par_locataire_bien[cle_lb].append(t)
-
-    # 3. Transactions de caution SANS filtre de date (historique complet)
-    transactions_caution = Transaction.objects.filter(
-        sci=request.current_sci,
-        type_transaction_id=TYPE_DEPOT_GARANTIE
-    ).select_related('locataire', 'bien')
-
-    # 4. Tous les montants OM attendus (TOUTES les années)
-    montants_om_dict = {}
-    for om in MontantOM.objects.filter(sci=request.current_sci):
-        cle = (om.locataire_id, om.bien_id)
-        if cle not in montants_om_dict:
-            montants_om_dict[cle] = []
-        montants_om_dict[cle].append(om)
-
-    # ====================================================================
-    # Parcourir les locataires et calculer en Python
-    # ====================================================================
     for locataire in locataires:
-        biens_locataire = locataire.biens.filter(sci=request.current_sci)
-
-        if not biens_locataire.exists():
+        if not locataire.biens.filter(sci=request.current_sci).exists():
             continue
 
-        paiements_problematiques = []
-        adresses_biens = []
+        blocs_a_afficher = [
+            bloc for bloc in locations_ouvertes(locataire, request.current_sci)
+            # Une location active ne s'affiche ici que si elle a une créance
+            # (dette) en cours -- un trop-perçu sur un bail en cours n'est pas
+            # un problème à signaler. Une location fermée mais encore ouverte
+            # (cf. locations_ouvertes) s'affiche toujours, dette ou trop-perçu.
+            if bloc['location'].date_sortie is not None or bloc['solde_final'] < 0
+        ]
+        if not blocs_a_afficher:
+            continue
 
-        for bien in biens_locataire:
+        adresses_biens = []
+        for bloc in blocs_a_afficher:
+            bien = bloc['bien']
             formatted_adresse = bien.adresse
             if bien.numero:
                 formatted_adresse = f"{bien.numero_formate} - {formatted_adresse}"
             adresses_biens.append(formatted_adresse)
 
-            location = toutes_locations.get((locataire.id, bien.id))
-            if not location:
-                continue
-
-            # Vérifier la caution
-            montant_caution_attendu = bien.montant_caution
-            total_caution_verse = sum(
-                t.montant for t in transactions_caution
-                if t.locataire_id == locataire.id
-                and t.bien_id == bien.id
-            )
-
-            if montant_caution_attendu is not None and montant_caution_attendu > 0:
-                if total_caution_verse < montant_caution_attendu:
-                    montant_caution_decimal = decimal.Decimal(str(montant_caution_attendu))
-                    verse_decimal = decimal.Decimal(str(total_caution_verse))
-                    statut = 'Partiel' if total_caution_verse > 0 else 'Non versée'
-                    paiements_problematiques.append({
-                        'type': f'Caution ({bien.numero + "-" if bien.numero else ""}{bien.adresse})',
-                        'mois': 'N/A',
-                        'montant_attendu': montant_caution_decimal,
-                        'montant_paye': verse_decimal,
-                        'montant_manquant': montant_caution_decimal - verse_decimal,
-                        'statut': statut
-                    })
-
-            if location.date_entree:
-                date_debut_verification = max(location.date_entree, date_debut_logiciel)
-                revisions_location = list(location.revisions_loyer.all())
-
-                date_courante = date_debut_verification
-                while date_courante <= date_aujourd_hui:
-                    mois_v = date_courante.month
-                    annee_v = date_courante.year
-
-                    trans_mois = transactions_par_cle.get((locataire.id, bien.id, annee_v, mois_v), [])
-
-                    total_loyer_paye = 0
-                    total_charges_paye = 0
-                    for t in trans_mois:
-                        nom_lower = t.type_transaction.nom.lower()
-                        if 'charge' in nom_lower and 'om' not in nom_lower:
-                            total_charges_paye += t.montant
-                        elif 'loyer' in nom_lower or 'caf' in nom_lower or 'retard loyer' in nom_lower:
-                            total_loyer_paye += t.montant
-
-                    # Loyer/charges applicables à ce mois précis (prorata premier mois ou révision de loyer)
-                    loyer_attendu_mois_dec, charges_attendues_mois_dec = get_loyer_charges_effectifs(location, bien, annee_v, mois_v, revisions=revisions_location)
-                    loyer_attendu_mois = float(loyer_attendu_mois_dec)
-                    charges_attendues_mois = float(charges_attendues_mois_dec)
-
-                    if total_loyer_paye < loyer_attendu_mois and loyer_attendu_mois > 0:
-                        statut = "Partiel" if total_loyer_paye > 0 else "Non payé"
-                        loyer_decimal = decimal.Decimal(str(loyer_attendu_mois))
-                        paye_decimal = decimal.Decimal(str(total_loyer_paye))
-                        paiements_problematiques.append({
-                            'type': f'Loyer ({bien.numero + "-" if bien.numero else ""}{bien.adresse})',
-                            'mois': f"{noms_mois_fr[mois_v]} {annee_v}",
-                            'montant_attendu': loyer_decimal,
-                            'montant_paye': paye_decimal,
-                            'montant_manquant': loyer_decimal - paye_decimal,
-                            'statut': statut
-                        })
-
-                    if charges_attendues_mois is not None and charges_attendues_mois > 0 and total_charges_paye < charges_attendues_mois:
-                        statut = "Partiel" if total_charges_paye > 0 else "Non payé"
-                        charges_decimal = decimal.Decimal(str(charges_attendues_mois))
-                        paye_decimal = decimal.Decimal(str(total_charges_paye))
-                        paiements_problematiques.append({
-                            'type': f'Charges ({bien.numero + "-" if bien.numero else ""}{bien.adresse})',
-                            'mois': f"{noms_mois_fr[mois_v]} {annee_v}",
-                            'montant_attendu': charges_decimal,
-                            'montant_paye': paye_decimal,
-                            'montant_manquant': charges_decimal - paye_decimal,
-                            'statut': statut
-                        })
-
-                    if mois_v == 12:
-                        date_courante = date(annee_v + 1, 1, 1)
-                    else:
-                        date_courante = date(annee_v, mois_v + 1, 1)
-
-            # Vérification OM
-            liste_om = montants_om_dict.get((locataire.id, bien.id), [])
-            for om in liste_om:
-                total_om_paye = 0
-                for cle, trans_list in transactions_par_cle.items():
-                    if cle[0] == locataire.id and cle[1] == bien.id:
-                        for t in trans_list:
-                            if 'om' in t.type_transaction.nom.lower() and t.mois_concerne and t.mois_concerne.year == om.annee:
-                                total_om_paye += t.montant
-
-                if om.montant_attendu > 0 and total_om_paye < om.montant_attendu:
-                    montant_om_decimal = decimal.Decimal(str(om.montant_attendu))
-                    total_om_paye_decimal = decimal.Decimal(str(total_om_paye))
-                    statut = "Partiel" if total_om_paye > 0 else "Non payé"
-                    paiements_problematiques.append({
-                        'type': f'Ordures Ménagères ({bien.numero + "-" if bien.numero else ""}{bien.adresse})',
-                        'mois': f"Année {om.annee}",
-                        'montant_attendu': montant_om_decimal,
-                        'montant_paye': total_om_paye_decimal,
-                        'montant_manquant': montant_om_decimal - total_om_paye_decimal,
-                        'statut': statut
-                    })
-
-        if paiements_problematiques:
-            total_manquant = decimal.Decimal('0')
-            for p in paiements_problematiques:
-                if isinstance(p['montant_manquant'], (int, float, decimal.Decimal)):
-                    if isinstance(p['montant_manquant'], (int, float)):
-                        total_manquant += decimal.Decimal(str(p['montant_manquant']))
-                    else:
-                        total_manquant += p['montant_manquant']
-
-            tous_biens_str = " / ".join(adresses_biens)
-            biens_releve = _calculer_releve(locataire, request.current_sci)
-            solde_net = sum(bloc['solde_final'] for bloc in biens_releve)
-
-            recapitulatif_paiements.append({
-                'locataire': locataire,
-                'bien': biens_locataire.first(),
-                'all_biens_str': tous_biens_str,
-                'paiements': paiements_problematiques,
-                'total_manquant': total_manquant,
-                'solde_net': solde_net,
-                'biens_releve': biens_releve,
-            })
+        recapitulatif_paiements.append({
+            'locataire': locataire,
+            'all_biens_str': " / ".join(adresses_biens),
+            'solde_net': sum(bloc['solde_final'] for bloc in blocs_a_afficher),
+            'biens_releve': blocs_a_afficher,
+        })
 
     context = {
         'recapitulatif_paiements': recapitulatif_paiements,
     }
 
     return render(request, 'principale/creances.html', context)
+
+
+def cloturer_location(request, location_id):
+    """Clôture manuellement une location fermée dont la créance résiduelle (dette
+    ou trop-perçu) ne sera plus réclamée/remboursée : elle disparaît de Créances
+    et ne peut plus recevoir de nouvelle transaction (voir services.location_est_soldee)."""
+    location = get_object_or_404(LocationBien, id=location_id, bien__sci=request.current_sci)
+
+    if request.method == 'POST':
+        if location.date_sortie is None:
+            messages.error(request, "Impossible de clôturer une location encore active.")
+        else:
+            location.date_cloture_manuelle = date.today()
+            commentaire = request.POST.get('commentaire_cloture', '').strip()
+            location.commentaire_cloture = commentaire or None
+            location.save()
+            messages.success(
+                request,
+                f"La créance de {location.locataire} sur {location.bien} a été clôturée."
+            )
+
+    return redirect('creances')
+
+
+def annuler_cloture_location(request, location_id):
+    """Annule une clôture manuelle faite par erreur : la location redevient visible
+    dans Créances et à nouveau sélectionnable dans le formulaire de transaction si
+    elle a encore un solde résiduel ou une caution non restituée."""
+    location = get_object_or_404(LocationBien, id=location_id, bien__sci=request.current_sci)
+
+    if request.method == 'POST':
+        location.date_cloture_manuelle = None
+        location.commentaire_cloture = None
+        location.save()
+        messages.success(
+            request,
+            f"La clôture de {location.locataire} sur {location.bien} a été annulée."
+        )
+
+    return redirect('detail_locataire', locataire_id=location.locataire_id)
 
 def changer_sci(request):
     """Vue pour changer la SCI active"""
@@ -2901,7 +2780,10 @@ def supprimer_revision_loyer(request, revision_id):
 def get_biens_locataire(request, locataire_id):
     try:
         locataire = Locataire.objects.get(id=locataire_id)
-        biens = locataire.biens.all()
+        # Seuls les biens "ouverts" (location active, ou fermée mais pas encore
+        # soldée) sont proposés -- une fois une location soldée/clôturée, on ne
+        # doit plus pouvoir lui affecter de nouvelle transaction.
+        biens = [bloc['bien'] for bloc in locations_ouvertes(locataire, request.current_sci)]
 
         # Préparer les données des biens
         biens_data = [
@@ -4949,182 +4831,6 @@ def save_montant_om(request):
 # ============================================================
 # RELEVÉ DE COMPTE LOCATAIRE
 # ============================================================
-
-def _calculer_releve(locataire, current_sci):
-    """
-    Calcule le relevé de compte mensuel d'un locataire depuis son entrée.
-    Retourne une liste de dicts par (bien, liste de lignes mensuelles).
-    Chaque ligne possède un champ 'type' : 'loyer', 'caution' ou 'om'.
-    """
-    noms_mois_fr = {
-        1: 'Janvier', 2: 'Février', 3: 'Mars', 4: 'Avril', 5: 'Mai', 6: 'Juin',
-        7: 'Juillet', 8: 'Août', 9: 'Septembre', 10: 'Octobre', 11: 'Novembre', 12: 'Décembre'
-    }
-    date_debut_logiciel = date(2025, 1, 1)
-    date_aujourd_hui = date.today()
-
-    # Transactions RECETTE mensuelles (hors caution/OM) du locataire pour la SCI
-    transactions = list(Transaction.objects.filter(
-        sci=current_sci,
-        locataire=locataire,
-        type_transaction__categorie='RECETTE',
-        mois_concerne__isnull=False,
-    ).select_related('type_transaction', 'bien'))
-
-    # Indexer par (bien_id, annee, mois)
-    trans_idx = {}
-    for t in transactions:
-        cle = (t.bien_id, t.mois_concerne.year, t.mois_concerne.month)
-        if cle not in trans_idx:
-            trans_idx[cle] = []
-        trans_idx[cle].append(t)
-
-    # Caution versée par bien
-    caution_par_bien = {}
-    for row in Transaction.objects.filter(
-        sci=current_sci,
-        locataire=locataire,
-        type_transaction__id=TYPE_DEPOT_GARANTIE,
-    ).values('bien_id').annotate(total=Sum('montant')):
-        caution_par_bien[row['bien_id']] = decimal.Decimal(str(row['total']))
-
-    # OM payés par (bien_id, annee) — transactions RECETTE avec 'om' dans le nom
-    om_paye_par_bien_annee = {}
-    for row in Transaction.objects.filter(
-        sci=current_sci,
-        locataire=locataire,
-        type_transaction__categorie='RECETTE',
-        type_transaction__nom__icontains='om',
-        mois_concerne__isnull=False,
-    ).values('bien_id', 'mois_concerne__year').annotate(total=Sum('montant')):
-        key = (row['bien_id'], row['mois_concerne__year'])
-        om_paye_par_bien_annee[key] = decimal.Decimal(str(row['total']))
-
-    # Montants OM attendus par (bien_id, annee)
-    om_attendu_par_bien_annee = {}
-    for om in MontantOM.objects.filter(sci=current_sci, locataire=locataire):
-        om_attendu_par_bien_annee[(om.bien_id, om.annee)] = decimal.Decimal(str(om.montant_attendu))
-
-    locations = LocationBien.objects.filter(
-        locataire=locataire,
-        bien__sci=current_sci,
-    ).select_related('bien').prefetch_related('revisions_loyer').order_by('date_entree')
-
-    biens_releve = []
-    for location in locations:
-        bien = location.bien
-        if not location.date_entree:
-            continue
-        date_debut = max(location.date_entree, date_debut_logiciel)
-        date_fin = location.date_sortie if location.date_sortie else date_aujourd_hui
-        revisions_location = list(location.revisions_loyer.all())
-
-        lignes = []
-        solde_cumule = decimal.Decimal('0')
-
-        # Ligne de report de solde antérieur à 2025 (si renseignée)
-        if location.solde_report_anterieur is not None and location.solde_report_anterieur != 0:
-            report = decimal.Decimal(str(location.solde_report_anterieur))
-            solde_cumule += report
-            lignes.append({
-                'type': 'report_anterieur',
-                'mois_label': 'Report antérieur à 2025',
-                'loyer_du': decimal.Decimal('0'),
-                'charges_dues': decimal.Decimal('0'),
-                'loyer_paye': decimal.Decimal('0'),
-                'charges_payees': decimal.Decimal('0'),
-                'ecart': report,
-                'solde_cumule': solde_cumule,
-            })
-
-        # Ligne caution (première ligne, toujours affichée)
-        # Priorité : bien.montant_caution, puis location.montant_caution en repli
-        _caution_ref = bien.montant_caution if bien.montant_caution is not None else location.montant_caution
-        montant_caution_attendu = decimal.Decimal(str(_caution_ref)) if _caution_ref is not None else decimal.Decimal('0')
-        caution_versee = caution_par_bien.get(bien.id, decimal.Decimal('0'))
-        ecart_caution = caution_versee - montant_caution_attendu
-        solde_cumule += ecart_caution
-        lignes.append({
-            'type': 'caution',
-            'mois_label': 'Dépôt de garantie',
-            'loyer_du': montant_caution_attendu,
-            'charges_dues': decimal.Decimal('0'),
-            'loyer_paye': caution_versee,
-            'charges_payees': decimal.Decimal('0'),
-            'ecart': ecart_caution,
-            'solde_cumule': solde_cumule,
-        })
-
-        d = date_debut
-        while d <= date_fin:
-            trans_mois = trans_idx.get((bien.id, d.year, d.month), [])
-            loyer_paye = decimal.Decimal('0')
-            charges_payees = decimal.Decimal('0')
-            for t in trans_mois:
-                nom = t.type_transaction.nom.lower()
-                if 'caution' in nom or 'garantie' in nom or 'om' in nom:
-                    continue
-                if 'charge' in nom:
-                    charges_payees += decimal.Decimal(str(t.montant))
-                else:
-                    loyer_paye += decimal.Decimal(str(t.montant))
-
-            # Loyer/charges applicables à ce mois précis (prorata premier mois ou révision de loyer)
-            loyer_du_mois, charges_dues_mois = get_loyer_charges_effectifs(location, bien, d.year, d.month, revisions=revisions_location)
-
-            du_mois = loyer_du_mois + charges_dues_mois
-            paye_mois = loyer_paye + charges_payees
-            ecart = paye_mois - du_mois
-            solde_cumule += ecart
-
-            lignes.append({
-                'type': 'loyer',
-                'mois_label': f"{noms_mois_fr[d.month]} {d.year}",
-                'loyer_du': loyer_du_mois,
-                'charges_dues': charges_dues_mois,
-                'loyer_paye': loyer_paye,
-                'charges_payees': charges_payees,
-                'ecart': ecart,
-                'solde_cumule': solde_cumule,
-            })
-
-            # Avancer au mois suivant
-            if d.month == 12:
-                next_d = date(d.year + 1, 1, 1)
-            else:
-                next_d = date(d.year, d.month + 1, 1)
-
-            # Ajouter ligne OM après le dernier mois de chaque année dans la période
-            annee_terminee = (next_d.year != d.year) or (next_d > date_fin)
-            if annee_terminee:
-                annee = d.year
-                om_attendu = om_attendu_par_bien_annee.get((bien.id, annee))
-                om_paye = om_paye_par_bien_annee.get((bien.id, annee), decimal.Decimal('0'))
-                if om_attendu is not None or om_paye > 0:
-                    ecart_om = om_paye - (om_attendu if om_attendu is not None else decimal.Decimal('0'))
-                    solde_cumule += ecart_om
-                    lignes.append({
-                        'type': 'om',
-                        'mois_label': f'Ordures Ménagères {annee}',
-                        'loyer_du': om_attendu if om_attendu is not None else decimal.Decimal('0'),
-                        'charges_dues': decimal.Decimal('0'),
-                        'loyer_paye': om_paye,
-                        'charges_payees': decimal.Decimal('0'),
-                        'ecart': ecart_om,
-                        'solde_cumule': solde_cumule,
-                    })
-
-            d = next_d
-
-        biens_releve.append({
-            'bien': bien,
-            'location': location,
-            'lignes': lignes,
-            'solde_final': solde_cumule,
-        })
-
-    return biens_releve
-
 
 def releve_locataire(request, locataire_id):
     """Relevé de compte complet d'un locataire : mois par mois depuis son entrée."""

@@ -5,10 +5,28 @@
 {% block content %}
 <div class="page-header d-flex justify-content-between align-items-center">
     <h1>Liste des locataires - {{ current_sci.nom }}</h1>
-    <a href="{% url 'ajouter_locataire' %}" class="btn btn-primary">
-        <i class="fas fa-plus"></i> Ajouter un locataire
-    </a>
+    <div>
+        <div class="btn-group me-2" role="group">
+            <a href="?filtre=actifs" class="btn btn-outline-secondary {% if filtre == 'actifs' %}active{% endif %}">
+                <i class="fas fa-user-check"></i> Actifs
+            </a>
+            <a href="?filtre=anciens" class="btn btn-outline-secondary {% if filtre == 'anciens' %}active{% endif %}">
+                <i class="fas fa-user-clock"></i> Anciens locataires
+            </a>
+            <a href="?filtre=tous" class="btn btn-outline-secondary {% if filtre == 'tous' %}active{% endif %}">
+                <i class="fas fa-users"></i> Tous
+            </a>
+        </div>
+        <a href="{% url 'ajouter_locataire' %}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Ajouter un locataire
+        </a>
+    </div>
 </div>
+{% if filtre == 'actifs' %}
+    <p class="text-muted">Les locataires sortis avant {{ annee_courante }} sont masqués.</p>
+{% elif filtre == 'anciens' %}
+    <p class="text-muted">Seuls les locataires sortis sont affichés.</p>
+{% endif %}
 
 <div class="card">
     <div class="card-body">

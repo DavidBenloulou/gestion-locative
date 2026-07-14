@@ -15,7 +15,7 @@
 
 {% if recapitulatif_paiements %}
     <div class="alert alert-info mb-4">
-        <i class="fas fa-info-circle me-2"></i> Cette page affiche uniquement les locataires ayant des paiements manquants ou partiels (loyers, caution, ordures ménagères).
+        <i class="fas fa-info-circle me-2"></i> Cette page affiche les locataires en cours ayant des paiements manquants ou partiels (loyers, caution, ordures ménagères), ainsi que les locataires partis dont l'ancien logement a encore un solde non nul (dette ou trop-perçu). Utilisez le bouton "Clôturer cette créance" pour faire disparaître un solde résiduel qui ne sera plus réclamé/remboursé.
     </div>
 
     <div class="accordion" id="accordionLoyers">
@@ -154,6 +154,11 @@
                                     </div>
 
                                     <div class="card-footer d-flex justify-content-end align-items-center gap-3 py-3">
+                                        {% if bloc.location.date_sortie %}
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#modalCloture{{ bloc.location.id }}">
+                                                <i class="fas fa-box-archive me-1"></i> Clôturer cette créance
+                                            </button>
+                                        {% endif %}
                                         <strong>Solde global :</strong>
                                         {% if bloc.solde_final < 0 %}
                                             <span class="badge bg-danger fs-6">{{ bloc.solde_final|euros }} (dette)</span>
@@ -168,6 +173,47 @@
                                     {% endif %}
                                 </div>
                             </div>
+
+                            {% if bloc.location.date_sortie %}
+                            <div class="modal fade" id="modalCloture{{ bloc.location.id }}" tabindex="-1" aria-hidden="true">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <form method="post" action="{% url 'cloturer_location' bloc.location.id %}">
+                                            {% csrf_token %}
+                                            <div class="modal-header">
+                                                <h5 class="modal-title">Clôturer cette créance ?</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <p>
+                                                    {{ item.locataire.nom }} {{ item.locataire.prenom }} —
+                                                    {{ bloc.bien.get_type_bien_display }}
+                                                    {% if bloc.bien.numero %} — {{ bloc.bien.numero_formate }}{% endif %}
+                                                    — {{ bloc.bien.adresse }}
+                                                </p>
+                                                <p>
+                                                    Solde restant :
+                                                    {% if bloc.solde_final < 0 %}
+                                                        <span class="text-danger fw-bold">{{ bloc.solde_final|euros }} (dette)</span>
+                                                    {% else %}
+                                                        <span class="text-success fw-bold">+{{ bloc.solde_final|euros }} (trop-perçu)</span>
+                                                    {% endif %}
+                                                </p>
+                                                <p class="text-muted">Cette créance ne sera plus comptée ni affichée ici, et plus aucune transaction ne pourra être affectée à ce bien pour ce locataire. Vous pourrez annuler cette clôture depuis la fiche du locataire si besoin.</p>
+                                                <div class="mb-2">
+                                                    <label for="commentaireCloture{{ bloc.location.id }}" class="form-label">Raison de la clôture (optionnel)</label>
+                                                    <textarea class="form-control" id="commentaireCloture{{ bloc.location.id }}" name="commentaire_cloture" rows="2"></textarea>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                                                <button type="submit" class="btn btn-primary">Confirmer la clôture</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
                         {% empty %}
                             <div class="alert alert-warning">
                                 <i class="fas fa-exclamation-triangle me-2"></i>
