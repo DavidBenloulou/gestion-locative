@@ -3742,21 +3742,24 @@ def export_etat_cautions(request):
     format_export = request.GET.get('format', 'pdf')
 
     # Récupérer toutes les locations ayant eu un mouvement de caution (versée et/ou restituée).
-    # Le montant retenu est Bien.montant_caution (source de vérité) : LocationBien.montant_caution
-    # est un champ historique qui n'est plus renseigné pour les locations créées depuis que la
-    # saisie de caution passe uniquement par les transactions (cf. CLAUDE.md §10).
     toutes_locations = list(LocationBien.objects.filter(
         bien__sci=request.current_sci,
         date_versement_caution__isnull=False
     ).select_related('bien', 'locataire').order_by('-date_versement_caution'))
 
+    # Montant retenu = ce qui a réellement été encaissé (somme des transactions de caution),
+    # et non Bien.montant_caution (montant de référence attendu) : les deux peuvent différer
+    # (ex. caution partielle), et ce rapport doit refléter l'argent réellement détenu -- même
+    # calcul que le "Total des cautions" du Bilan comptable détaillé, pour rester cohérent.
+    cautions_versees_par_cle = {
+        (row['locataire_id'], row['bien_id']): decimal.Decimal(str(row['total']))
+        for row in Transaction.objects.filter(
+            sci=request.current_sci,
+            type_transaction_id=TYPE_DEPOT_GARANTIE,
+        ).values('locataire_id', 'bien_id').annotate(total=Sum('montant'))
+    }
     for loc in toutes_locations:
-        if loc.bien.montant_caution is not None:
-            loc.montant_caution = loc.bien.montant_caution
-        elif loc.montant_caution is None:
-            # Ni le bien ni la location n'ont de montant de référence connu :
-            # on affiche 0 plutôt que de laisser un montant manquant planter l'export.
-            loc.montant_caution = decimal.Decimal('0')
+        loc.montant_caution = cautions_versees_par_cle.get((loc.locataire_id, loc.bien_id), decimal.Decimal('0'))
 
     # Date de début et fin : 01/01 au 31/12 de l'année sélectionnée
     date_debut_annee = date(annee_selectionnee, 1, 1)
