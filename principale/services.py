@@ -177,7 +177,13 @@ def _calculer_releve(locataire, current_sci):
 
             du_mois = loyer_du_mois + charges_dues_mois
             paye_mois = loyer_paye + charges_payees
-            ecart = paye_mois - du_mois
+            est_mois_courant = (d.year == date_aujourd_hui.year and d.month == date_aujourd_hui.month)
+            if est_mois_courant and paye_mois == 0:
+                # Mois en cours non échu : tant qu'aucun paiement n'a été fait, ce n'est
+                # pas encore une créance (certains locataires paient en fin de mois).
+                ecart = decimal.Decimal('0')
+            else:
+                ecart = paye_mois - du_mois
             solde_cumule += ecart
 
             lignes.append({
