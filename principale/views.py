@@ -4677,11 +4677,6 @@ def gestion_om(request):
 
     annees_disponibles = range(2025, annee_courante + 1)
 
-    locataires_actifs = Locataire.objects.filter(
-        biens__sci=request.current_sci,
-        locations__date_sortie__isnull=True
-    ).distinct().order_by('nom', 'prenom')
-
     if request.method == 'POST':
         nb_modifs = 0
         for key, value in request.POST.items():
@@ -4718,60 +4713,63 @@ def gestion_om(request):
 
     tableau_om = []
 
-    for locataire in locataires_actifs:
-        biens_locataire = locataire.biens.filter(sci=request.current_sci)
+    # Toutes les locations ayant chevauché l'année sélectionnée (peu importe si le
+    # locataire est toujours présent aujourd'hui) : entré avant la fin de l'année ET
+    # (toujours présent, ou sorti après le début de l'année).
+    debut_annee = date(annee_selectionnee, 1, 1)
+    fin_annee = date(annee_selectionnee, 12, 31)
+    locations_annee = LocationBien.objects.filter(
+        bien__sci=request.current_sci,
+        date_entree__lte=fin_annee,
+    ).filter(
+        Q(date_sortie__isnull=True) | Q(date_sortie__gte=debut_annee)
+    ).select_related('locataire', 'bien').order_by('locataire__nom', 'locataire__prenom')
 
-        for bien in biens_locataire:
-            location = LocationBien.objects.filter(
-                locataire=locataire,
-                bien=bien,
-                date_sortie__isnull=True
-            ).first()
+    for location in locations_annee:
+        locataire = location.locataire
+        bien = location.bien
 
-            if not location:
-                continue
+        montant_om = MontantOM.objects.filter(
+            sci=request.current_sci,
+            locataire=locataire,
+            bien=bien,
+            annee=annee_selectionnee
+        ).first()
 
-            montant_om = MontantOM.objects.filter(
-                sci=request.current_sci,
-                locataire=locataire,
-                bien=bien,
-                annee=annee_selectionnee
-            ).first()
+        montant_attendu = montant_om.montant_attendu if montant_om else None
 
-            montant_attendu = montant_om.montant_attendu if montant_om else None
+        paiements_om = Transaction.objects.filter(
+            locataire=locataire,
+            bien=bien,
+            type_transaction__nom__icontains='OM',
+            type_transaction__categorie='RECETTE',
+            mois_concerne__year=annee_selectionnee
+        )
+        montant_paye = sum(p.montant for p in paiements_om)
 
-            paiements_om = Transaction.objects.filter(
-                locataire=locataire,
-                bien=bien,
-                type_transaction__nom__icontains='OM',
-                type_transaction__categorie='RECETTE',
-                mois_concerne__year=annee_selectionnee
-            )
-            montant_paye = sum(p.montant for p in paiements_om)
+        if montant_attendu is None:
+            statut = "Non défini"
+        elif montant_attendu == 0 or montant_paye >= montant_attendu:
+            statut = "OK"
+        elif montant_paye > 0:
+            statut = "Partiel"
+        else:
+            statut = "Non payé"
 
-            if montant_attendu is None:
-                statut = "Non défini"
-            elif montant_attendu == 0 or montant_paye >= montant_attendu:
-                statut = "OK"
-            elif montant_paye > 0:
-                statut = "Partiel"
-            else:
-                statut = "Non payé"
+        if montant_attendu is not None:
+            reste = max(montant_attendu - decimal.Decimal(str(montant_paye)), decimal.Decimal('0'))
+        else:
+            reste = None
 
-            if montant_attendu is not None:
-                reste = max(montant_attendu - decimal.Decimal(str(montant_paye)), decimal.Decimal('0'))
-            else:
-                reste = None
-
-            tableau_om.append({
-                'locataire': locataire,
-                'bien': bien,
-                'montant_attendu': montant_attendu,
-                'montant_paye': montant_paye,
-                'reste_a_payer': reste,
-                'statut': statut,
-                'field_name': f"montant_{locataire.id}_{bien.id}",
-            })
+        tableau_om.append({
+            'locataire': locataire,
+            'bien': bien,
+            'montant_attendu': montant_attendu,
+            'montant_paye': montant_paye,
+            'reste_a_payer': reste,
+            'statut': statut,
+            'field_name': f"montant_{locataire.id}_{bien.id}",
+        })
 
     context = {
         'tableau_om': tableau_om,
