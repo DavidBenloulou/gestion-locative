@@ -3761,6 +3761,9 @@ def export_etat_cautions(request):
     for loc in toutes_locations:
         loc.montant_caution = cautions_versees_par_cle.get((loc.locataire_id, loc.bien_id), decimal.Decimal('0'))
 
+    # Une caution jamais réellement versée (0 €) n'a rien à faire dans ce rapport.
+    toutes_locations = [l for l in toutes_locations if l.montant_caution != 0]
+
     # Date de début et fin : 01/01 au 31/12 de l'année sélectionnée
     date_debut_annee = date(annee_selectionnee, 1, 1)
     date_fin_annee = date(annee_selectionnee, 12, 31)
