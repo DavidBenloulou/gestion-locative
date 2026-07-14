@@ -8,7 +8,7 @@ from datetime import date
 
 from django.db.models import Sum
 
-from .models import Transaction, LocationBien, MontantOM
+from .models import Transaction, LocationBien, MontantOM, Locataire
 
 # ID du type de transaction "RECETTE - Dépôt de garantie" (caution versée).
 # Voir CLAUDE.md §9. Les transactions de caution n'ont pas de mois_concerne.
@@ -257,3 +257,31 @@ def locations_ouvertes(locataire, current_sci):
         bloc for bloc in _calculer_releve(locataire, current_sci)
         if not location_est_soldee(bloc)
     ]
+
+
+def locataires_avec_bien_ouvert_ids(current_sci):
+    """IDs des locataires ayant au moins un bien 'ouvert' dans cette SCI (une
+    location active, ou fermée mais pas encore soldée -- voir locations_ouvertes).
+    Un locataire totalement parti et soldé partout ne doit plus être proposé dans
+    le formulaire de transaction (plus rien à lui affecter).
+
+    Optimisé : le relevé complet (_calculer_releve, coûteux) n'est recalculé que
+    pour les locataires sans aucune location active -- les autres sont
+    trivialement 'ouverts' via leur location en cours."""
+    ids_actifs = set(
+        LocationBien.objects.filter(
+            bien__sci=current_sci,
+            date_sortie__isnull=True,
+        ).values_list('locataire_id', flat=True)
+    )
+
+    locataires_sans_location_active = Locataire.objects.filter(
+        biens__sci=current_sci
+    ).exclude(id__in=ids_actifs).distinct()
+
+    ids_ouverts = set(ids_actifs)
+    for locataire in locataires_sans_location_active:
+        if locations_ouvertes(locataire, current_sci):
+            ids_ouverts.add(locataire.id)
+
+    return ids_ouverts
