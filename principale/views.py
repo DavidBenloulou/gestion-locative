@@ -3031,8 +3031,8 @@ def apercu_impression_creances(request):
                         type_transaction__nom__icontains='om'
                     )
 
-                    total_loyer_paye = sum(p.montant for p in paiements_loyer)
-                    total_charges_paye = sum(p.montant for p in paiements_charges)
+                    total_loyer_paye = float(sum(p.montant for p in paiements_loyer))
+                    total_charges_paye = float(sum(p.montant for p in paiements_charges))
 
                     if total_loyer_paye < loyer_mensuel and loyer_mensuel > 0:
                         creance_id = f"loyer_{locataire.id}_{bien.id}_{mois_a_verifier}_{annee_a_verifier}"
