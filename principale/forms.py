@@ -1,6 +1,7 @@
 from django import forms
 from django.core.exceptions import ValidationError
 from .models import Bien, Locataire, Transaction, LocationBien, TypeTransaction, RevisionLoyer
+from .services import locations_ouvertes
 
 class BienForm(forms.ModelForm):
     class Meta:
@@ -156,21 +157,31 @@ class TransactionForm(forms.ModelForm):
         if not locataire and self.instance.pk and self.instance.locataire:
             locataire = self.instance.locataire
 
-        # Si un locataire est trouvé, charger ses biens
+        # Si un locataire est trouvé, charger ses biens "ouverts" : sa location
+        # active, ou une location fermée mais pas encore soldée (voir
+        # services.locations_ouvertes). Une fois une location soldée/clôturée,
+        # elle ne doit plus être proposée pour éviter de s'y tromper.
         if locataire:
-            biens_locataire = locataire.biens.all()
+            if current_sci:
+                biens_ids = [bloc['bien'].id for bloc in locations_ouvertes(locataire, current_sci)]
+                biens_locataire = Bien.objects.filter(id__in=biens_ids)
+            else:
+                biens_locataire = locataire.biens.all()
             self.fields['bien_specifique'].queryset = biens_locataire
+            self._nb_biens_valides = biens_locataire.count()
 
             # Gérer la visibilité et l'obligation du champ bien_specifique
-            if biens_locataire.count() > 1:
+            if self._nb_biens_valides > 1:
                 self.fields['bien_specifique'].required = True
                 # Pré-sélectionner le bien existant lors d'une modification
                 if self.instance.pk and self.instance.bien:
                     self.initial['bien_specifique'] = self.instance.bien
             else:
                 self.fields['bien_specifique'].required = False
-                if biens_locataire.count() == 1:
+                if self._nb_biens_valides == 1:
                     self.initial['bien_specifique'] = biens_locataire.first()
+        else:
+            self._nb_biens_valides = 0
 
     def clean(self):
         from datetime import date as date_class
@@ -200,8 +211,8 @@ class TransactionForm(forms.ModelForm):
         # Si c'est une transaction travaux sans locataire ni SCI, le bien est optionnel
         if type_transaction and 'travaux' in type_transaction.nom.lower() and not sci_transaction and not locataire:
             pass
-        # Si locataire avec plusieurs biens
-        elif locataire and locataire.biens.count() > 1 and not sci_transaction:
+        # Si locataire avec plusieurs biens ouverts
+        elif locataire and getattr(self, '_nb_biens_valides', 0) > 1 and not sci_transaction:
             if not bien_specifique:
                 raise ValidationError({
                     'bien_specifique': 'Vous devez sélectionner un bien pour ce locataire qui en possède plusieurs.'
@@ -227,7 +238,7 @@ class TransactionForm(forms.ModelForm):
                 instance.locataire = self.cleaned_data.get('locataire')
             elif instance.locataire:
                 bien_specifique = self.cleaned_data.get('bien_specifique')
-                instance.bien = bien_specifique or instance.locataire.biens.first()
+                instance.bien = bien_specifique or self.fields['bien_specifique'].queryset.first()
 
         # Si c'est une transaction OM, appliquer l'année concernée dans mois_concerne
         if self.cleaned_data.get('mois_concerne') and self.cleaned_data.get('annee_concernee'):

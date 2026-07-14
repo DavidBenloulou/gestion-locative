@@ -224,6 +224,15 @@ class LocationBien(models.Model):
         max_length=255, blank=True, null=True,
         verbose_name="Commentaire sur le report antérieur"
     )
+    date_cloture_manuelle = models.DateField(
+        null=True, blank=True,
+        verbose_name="Date de clôture manuelle",
+        help_text="Renseignée quand la créance restante (positive ou négative) est volontairement clôturée sans être soldée à 0"
+    )
+    commentaire_cloture = models.CharField(
+        max_length=255, blank=True, null=True,
+        verbose_name="Commentaire sur la clôture"
+    )
 
     class Meta:
         verbose_name = "Location de bien"
