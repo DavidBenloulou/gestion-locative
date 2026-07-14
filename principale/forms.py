@@ -106,7 +106,10 @@ class TransactionForm(forms.ModelForm):
         self.fields['annee_concernee'].choices = choix_annees
 
         # Ordonner les types de transactions par catégorie puis par nom
-        self.fields['type_transaction'].queryset = TypeTransaction.objects.order_by('categorie', 'nom')
+        # "Rbt retard Loyer" n'est plus saisissable (transactions historiques conservées telles quelles)
+        self.fields['type_transaction'].queryset = TypeTransaction.objects.exclude(
+            nom__icontains='retard loyer'
+        ).order_by('categorie', 'nom')
 
         # Filtrer les locataires de la SCI
         if current_sci:

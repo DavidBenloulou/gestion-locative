@@ -163,6 +163,26 @@ document.addEventListener('DOMContentLoaded', function() {
         return typesPreselectionSci.some(type => lowerCaseText === type);
     }
 
+    // Fonction pour calculer le mois précédent (même jour) à partir d'une date au format YYYY-MM-DD
+    function getMoisPrecedent(dateStr) {
+        if (!dateStr) return '';
+        var parts = dateStr.split('-');
+        if (parts.length !== 3) return '';
+        var year = parseInt(parts[0], 10);
+        var month = parseInt(parts[1], 10);
+        var day = parseInt(parts[2], 10);
+        month -= 1;
+        if (month === 0) {
+            month = 12;
+            year -= 1;
+        }
+        var dernierJourDuMois = new Date(year, month, 0).getDate();
+        if (day > dernierJourDuMois) day = dernierJourDuMois;
+        var mm = String(month).padStart(2, '0');
+        var dd = String(day).padStart(2, '0');
+        return year + '-' + mm + '-' + dd;
+    }
+
     // Fonction pour extraire l'année depuis le champ date
     function getYearFromDateInput() {
         if (dateInput && dateInput.value) {
@@ -269,8 +289,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
         var isRelevantType = transactionText.includes('loyer') ||
                             transactionText.includes('caf') ||
-                            transactionText.includes('retard') ||
                             transactionText.includes('charge');
+
+        var isCafType = transactionText.includes('caf');
 
         var isOMType = transactionText.includes('om') ||
                        transactionText.includes('ordures');
@@ -300,11 +321,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 moisConcerneInput.value = '';
             }
         } else if (isRelevantType) {
-            // Afficher le mois concerné pour loyer/caf/retard/charge
+            // Afficher le mois concerné pour loyer/caf/charge
             moisConcerneDiv.style.display = 'block';
 
             if (moisConcerneInput && dateInput && (!moisConcerneInput.value || moisConcerneInput.value === '')) {
-                moisConcerneInput.value = dateInput.value;
+                moisConcerneInput.value = isCafType ? getMoisPrecedent(dateInput.value) : dateInput.value;
             }
         } else {
             // Ni l'un ni l'autre
@@ -383,14 +404,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 var isRelevantType = transactionText.includes('loyer') ||
                                      transactionText.includes('caf') ||
-                                     transactionText.includes('retard') ||
                                      transactionText.includes('charge');
+
+                var isCafType = transactionText.includes('caf');
 
                 var isOMType = transactionText.includes('om') ||
                                transactionText.includes('ordures');
 
                 if (isRelevantType && moisConcerneInput) {
-                    moisConcerneInput.value = dateInput.value;
+                    moisConcerneInput.value = isCafType ? getMoisPrecedent(dateInput.value) : dateInput.value;
                 }
 
                 if (isOMType && anneeConcerneeSelect) {
