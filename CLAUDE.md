@@ -178,6 +178,7 @@ Appli gestion SCI/
 │   ├── models.py               # Modèles de données
 │   ├── views.py                # Vues (TRÈS long fichier ~4500+ lignes)
 │   ├── forms.py                # Formulaires Django
+│   ├── services.py             # Logique partagée forms.py/views.py (relevé de compte, TYPE_DEPOT_GARANTIE...)
 │   ├── urls.py                 # URLs
 │   ├── middleware.py           # Middleware SCI (gestion SCI active)
 │   ├── context_processors.py
@@ -286,7 +287,7 @@ CommentaireCreance     # Commentaires sur les créances
 ```
 
 **Types de transactions importants** :
-- ID 18 : `RECETTE - Dépôt de garantie` (caution versée) — utiliser la constante `TYPE_DEPOT_GARANTIE` définie en tête de `views.py` plutôt que le nombre `18` en dur
+- ID 18 : `RECETTE - Dépôt de garantie` (caution versée) — utiliser la constante `TYPE_DEPOT_GARANTIE` définie dans `principale/services.py` (importée dans `views.py`) plutôt que le nombre `18` en dur
 - ID 19 : `DEPENSE - Rbt Dépôt garantie` (caution remboursée)
 
 ---
@@ -331,11 +332,28 @@ CommentaireCreance     # Commentaires sur les créances
 - Migration : `0019_revisionloyer`
 - Nouveau modèle `RevisionLoyer` (FK vers `LocationBien`, related_name `revisions_loyer`) : `date_effet`, `nouveau_loyer`, `nouvelles_charges` (nullable), `commentaire` (optionnel)
 - **Objectif** : permettre d'augmenter le loyer/les charges d'un locataire resté longtemps en place (indexation annuelle par ex.) à une date donnée, sans attendre un changement de locataire ni impacter rétroactivement les mois précédents.
-- **Calcul centralisé** : `get_loyer_charges_effectifs(location, bien, annee, mois, revisions=None)` dans `views.py` (près de `TYPE_DEPOT_GARANTIE`) est LE point unique utilisé partout (état des paiements, créances, aperçu d'impression des créances, `_calculer_releve`) pour déterminer le loyer/charges dus un mois donné. Priorité : 1) prorata premier mois si c'est le mois d'arrivée, 2) sinon la révision la plus récente dont `date_effet` (au niveau du mois, jour ignoré) est ≤ ce mois, 3) sinon `bien.loyer_mensuel`/`bien.montant_charges`. Une variante `get_loyer_charges_bien` (sans le prorata) existe pour `etat_paiements`, qui gère son propre cas d'arrivée séparément.
+- **Calcul centralisé** : `get_loyer_charges_effectifs(location, bien, annee, mois, revisions=None)` dans `principale/services.py` (avec `TYPE_DEPOT_GARANTIE` et `_calculer_releve`, importés dans `views.py`) est LE point unique utilisé partout (état des paiements, créances, aperçu d'impression des créances, `_calculer_releve`) pour déterminer le loyer/charges dus un mois donné. Priorité : 1) prorata premier mois si c'est le mois d'arrivée, 2) sinon la révision la plus récente dont `date_effet` (au niveau du mois, jour ignoré) est ≤ ce mois, 3) sinon `bien.loyer_mensuel`/`bien.montant_charges`. Une variante `get_loyer_charges_bien` (sans le prorata) existe pour `etat_paiements`, qui gère son propre cas d'arrivée séparément.
 - ⚠️ **Perf** : cette fonction est appelée une fois par mois par location — toujours précharger `location.revisions_loyer.all()` une fois (via `prefetch_related('revisions_loyer')` sur la requête `LocationBien`) et passer la liste en paramètre `revisions=`, jamais laisser la fonction requêter elle-même dans une boucle mensuelle.
 - **Synchronisation avec la fiche du bien** : modifier `Bien.loyer_mensuel`/`montant_charges` directement sur la fiche du bien (`modifier_bien`) déclenche `synchroniser_revision_loyer_bien(bien)`, qui crée/met à jour automatiquement une `RevisionLoyer` datée du jour pour chaque location active de ce bien. Comportement voulu : une fois qu'une révision existe pour une location, elle prime pour toujours sur `bien.loyer_mensuel` pour les mois futurs — sans cette synchronisation, modifier le bien directement n'aurait plus aucun effet visible.
 - **UI** : le tableau des révisions (ajout/modification/suppression) est identique et modifiable depuis deux pages — `formulaire_bien.html` (locataire actif du bien) et `formulaire_location_bien.html` — via le template partagé `principale/_revisions_loyer_table.html`. Les vues `ajouter_revision_loyer`/`modifier_revision_loyer`/`supprimer_revision_loyer` acceptent `?retour=bien&bien_id=<id>` dans l'URL pour revenir à la bonne page d'origine (le paramètre est conservé automatiquement car les `<form>` n'ont pas d'attribut `action` explicite).
 - ⚠️ Corrigé au passage : `apercu_impression_creances` (aperçu PDF des créances) n'appliquait pas le prorata du premier mois, contrairement aux 3 autres écrans — c'est désormais harmonisé.
+
+### Locataires partis, créances résiduelles et clôture manuelle (juillet 2026)
+- Migration : `0020_locationbien_cloture_manuelle`
+- Champs ajoutés sur `LocationBien` : `date_cloture_manuelle` (nullable), `commentaire_cloture` (texte libre, optionnel)
+- **Nouveau module `principale/services.py`** : contient désormais `TYPE_DEPOT_GARANTIE`, `get_loyer_charges_bien`, `get_loyer_charges_effectifs`, `_calculer_releve` (déplacés depuis `views.py`), ainsi que les nouvelles fonctions ci-dessous. Créé pour que `forms.py` puisse importer cette logique sans dépendance circulaire (`views.py` importe `forms.py`).
+- **`location_est_soldee(bloc)`** : une location fermée (`date_sortie` renseignée) est "soldée" si son solde final (`_calculer_releve`) est à 0 ET que sa caution est réglée (non due, ou `date_restitution_caution` renseignée) — sauf si `date_cloture_manuelle` est renseignée, auquel cas elle est soldée quel que soit le solde (clôture manuelle prioritaire).
+- **`locations_ouvertes(locataire, sci)`** : renvoie les blocs de `_calculer_releve()` qui ne sont PAS soldés (locations actives + locations fermées avec un solde résiduel ou une caution non restituée). C'est LE point unique utilisé partout pour savoir quels biens sont encore "valides" pour un locataire.
+- **`locataires_avec_bien_ouvert_ids(sci)`** : IDs des locataires ayant au moins un bien ouvert (optimisé : ne recalcule `_calculer_releve` que pour les locataires sans aucune location active).
+- **Comportements impactés** :
+  - **Onglet Créances** : un locataire réapparaît même s'il est totalement parti, tant qu'il lui reste une créance ou un trop-perçu sur une ancienne location. Une location fermée et soldée disparaît de Créances. Bouton **"Clôturer cette créance"** (avec commentaire optionnel) pour clôturer manuellement un solde résiduel qui ne sera jamais réclamé/remboursé ; **"Annuler la clôture"** disponible sur la fiche du locataire (colonne Statut du tableau des logements).
+  - **Formulaire de transaction** (`TransactionForm`) : les menus déroulants "Locataire" ET "Bien concerné" n'affichent que les biens/locataires encore ouverts (`locations_ouvertes`/`locataires_avec_bien_ouvert_ids`), pour éviter d'affecter par erreur une transaction à une ancienne place soldée (ex. un locataire qui change de logement dans la même SCI). ⚠️ Le locataire/bien déjà affecté à une transaction **existante** reste toujours proposé lors de sa modification, même si depuis soldé, pour ne pas casser l'édition de l'historique.
+  - **Fiche locataire** (`detail_locataire.html`) : affichage du solde global (tous biens confondus) sous le tableau des logements occupés, avec détail par bien si plusieurs.
+  - **Liste des locataires** : filtre à 3 états (`?filtre=actifs|anciens|tous`, `actifs` par défaut) — voir aussi la feature "masquage des locataires sortis" ci-dessous.
+- ⚠️ **Perf** : l'onglet Créances appelle désormais `_calculer_releve()` pour chaque locataire (au lieu d'une boucle manuelle avec requêtes groupées) — acceptable au volume actuel (quelques dizaines de locataires), à surveiller si la base grossit beaucoup.
+
+### Masquage des locataires sortis dans la liste (juillet 2026)
+- `liste_locataires` : filtre `?filtre=actifs` (défaut, masque les locataires sortis avant l'année en cours), `?filtre=anciens` (uniquement les locataires totalement sortis), `?filtre=tous` (aucun filtre). Boutons dans le header de `liste_locataires.html`.
 
 ### Transactions Travaux + SCI (bug corrigé mai 2026)
 - Une transaction de type "travaux" cochée "Transaction liée à la SCI" peut avoir un bien associé (par exemple : facture de chaudière payée par la SCI mais affectée à un appartement précis)
@@ -576,6 +594,7 @@ Solution adoptée : l'option **"Automatically delete head branches"** est activ�
 - **Mai 2026 (jour 7)** : élucidation du 403 sur la suppression de branches distantes. Le blocage vient du proxy interne de Claude Code (mesure de sécurité Anthropic), pas de GitHub. Désinstallation/réinstallation de l'app sans effet — c'est attendu. Activation de l'option "Automatically delete head branches" sur GitHub pour que la suppression distante se fasse automatiquement après merge. CLAUDE.md mis à jour pour éviter à toute session future de refaire le même diagnostic.
 - **Juillet 2026** : ajout du "report de solde antérieur à 2025" (migration 0018) — champ `solde_report_anterieur` sur `LocationBien` permettant de reporter une dette ou un trop-perçu antérieur au démarrage de la comptabilité, sous forme de première ligne du relevé de compte (Créances, relevé détaillé, exports PDF/Excel).
 - **Juillet 2026** : ajout des révisions de loyer/charges en cours de bail (migration 0019, modèle `RevisionLoyer`, fonction centrale `get_loyer_charges_effectifs`). Corrigé au passage une incohérence sur l'aperçu d'impression des créances (prorata premier mois non appliqué) et un bug sur l'état des paiements (les 3 mois précédents réutilisaient à tort le loyer du mois courant). Ajout d'une synchronisation automatique : modifier le loyer/charges directement sur la fiche du bien crée désormais une révision datée du jour, pour que la fiche du bien et la fiche du logement du locataire restent toujours cohérentes et modifiables des deux côtés.
+- **Juillet 2026** : masquage des locataires sortis avant l'année en cours dans la liste des locataires (filtre `?filtre=actifs|anciens|tous`). Bug découvert au passage : un locataire totalement parti mais encore débiteur disparaissait purement et simplement de l'onglet Créances (le filtre exigeait une location active). Corrigé avec la feature "locataires partis et créances résiduelles" (migration 0020) : nouveau module `principale/services.py` (pour casser une dépendance circulaire forms.py/views.py), fonctions `locations_ouvertes`/`location_est_soldee`/`locataires_avec_bien_ouvert_ids`, bouton de clôture manuelle d'une créance résiduelle, filtrage des menus déroulants locataire/bien du formulaire de transaction, et affichage du solde global sur la fiche locataire. Cas d'usage déclencheur : un locataire changeant de logement au sein d'une même SCI restait sélectionnable sur son ancienne place, avec un risque d'y affecter une transaction par erreur.
 
 ### Modules Python — installation locale
 
@@ -587,4 +606,4 @@ Le module est importé localement dans chaque vue d'export (pas en haut de `view
 
 ---
 
-*Dernière mise à jour : mai 2026 — optimisation N+1 caution + constante TYPE_DEPOT_GARANTIE*
+*Dernière mise à jour : juillet 2026 — locataires partis, créances résiduelles, clôture manuelle et module `principale/services.py`*
