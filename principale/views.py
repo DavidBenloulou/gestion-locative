@@ -6,6 +6,7 @@ from .forms import BienForm, LocataireForm, TransactionForm, LocationBienForm, R
 from datetime import date, datetime
 import calendar
 import io
+import itertools
 from reportlab.lib.pagesizes import landscape, A4
 from reportlab.lib import colors
 import decimal
@@ -2978,7 +2979,7 @@ def apercu_impression_creances(request):
                     liste_creances.append({
                         'locataire': f"{locataire.nom} {locataire.prenom}",
                         'bien': f"{bien.adresse}, {bien.code_postal} {bien.ville}",
-                        'type': f'Caution ({bien.numero + "-" if bien.numero else ""}{bien.adresse})',
+                        'type': 'Caution',
                         'periode': 'N/A',
                         'montant_attendu': decimal.Decimal(str(montant_caution)),
                         'montant_paye': decimal.Decimal('0'),
@@ -3045,7 +3046,7 @@ def apercu_impression_creances(request):
                         liste_creances.append({
                             'locataire': f"{locataire.nom} {locataire.prenom}",
                             'bien': adresse_bien,
-                            'type': f'Loyer ({bien.numero + "-" if bien.numero else ""}{bien.adresse})',
+                            'type': 'Loyer',
                             'periode': f"{noms_mois_fr[mois_a_verifier]} {annee_a_verifier}",
                             'montant_attendu': decimal.Decimal(str(loyer_mensuel)),
                             'montant_paye': decimal.Decimal(str(total_loyer_paye)),
@@ -3065,7 +3066,7 @@ def apercu_impression_creances(request):
                         liste_creances.append({
                             'locataire': f"{locataire.nom} {locataire.prenom}",
                             'bien': adresse_bien,
-                            'type': f'Charges ({bien.numero + "-" if bien.numero else ""}{bien.adresse})',
+                            'type': 'Charges',
                             'periode': f"{noms_mois_fr[mois_a_verifier]} {annee_a_verifier}",
                             'montant_attendu': decimal.Decimal(str(montant_charges)),
                             'montant_paye': decimal.Decimal(str(total_charges_paye)),
@@ -3111,7 +3112,7 @@ def apercu_impression_creances(request):
                     liste_creances.append({
                         'locataire': f"{locataire.nom} {locataire.prenom}",
                         'bien': adresse_bien,
-                        'type': f'Ordures Ménagères ({bien.numero + "-" if bien.numero else ""}{bien.adresse})',
+                        'type': 'Ordures Ménagères',
                         'periode': f"Année {om.annee}",
                         'montant_attendu': montant_om_decimal,
                         'montant_paye': total_om_paye_decimal,
@@ -3204,7 +3205,7 @@ def generer_excel_creances(request, liste_creances, context):
         'border': 1,
         'align': 'right',
         'valign': 'vcenter',
-        'num_format': '0.00 €'
+        'num_format': '#,##0.00 €'
     })
 
     total_style = workbook.add_format({
@@ -3213,7 +3214,29 @@ def generer_excel_creances(request, liste_creances, context):
         'border': 1,
         'align': 'right',
         'valign': 'vcenter',
-        'num_format': '0.00 €'
+        'num_format': '#,##0.00 €'
+    })
+
+    sous_total_label_style = workbook.add_format({
+        'bold': True,
+        'bg_color': '#E8E8E8',
+        'border': 1,
+        'align': 'right',
+        'valign': 'vcenter'
+    })
+
+    sous_total_montant_style = workbook.add_format({
+        'bold': True,
+        'bg_color': '#E8E8E8',
+        'border': 1,
+        'align': 'right',
+        'valign': 'vcenter',
+        'num_format': '#,##0.00 €'
+    })
+
+    sous_total_vide_style = workbook.add_format({
+        'bg_color': '#E8E8E8',
+        'border': 1
     })
 
     # Écrire les titres
@@ -3225,35 +3248,55 @@ def generer_excel_creances(request, liste_creances, context):
     for col, header in enumerate(headers):
         worksheet.write(3, col, header, header_style)
 
-    # Écrire les données
+    # Écrire les données, groupées par locataire avec un sous-total par locataire
     row = 4
-    for creance in liste_creances:
-        # Locataire
-        worksheet.write(row, 0, creance['locataire'], cell_style_left)
+    for locataire_nom, creances_locataire in itertools.groupby(liste_creances, key=lambda c: c['locataire']):
+        creances_locataire = list(creances_locataire)
+        debut_groupe = row
+        sous_total_attendu = decimal.Decimal('0')
+        sous_total_paye = decimal.Decimal('0')
 
-        # Bien
-        worksheet.write(row, 1, creance['bien'], cell_style_left)
+        for creance in creances_locataire:
+            # Bien
+            worksheet.write(row, 1, creance['bien'], cell_style_left)
 
-        # Type
-        worksheet.write(row, 2, creance['type'], cell_style_center)
+            # Type
+            worksheet.write(row, 2, creance['type'], cell_style_center)
 
-        # Période
-        worksheet.write(row, 3, creance['periode'], cell_style_center)
+            # Période
+            worksheet.write(row, 3, creance['periode'], cell_style_center)
 
-        # Montant attendu
-        if creance['montant_attendu'] == 'À déterminer':
-            worksheet.write(row, 4, 'À déterminer', cell_style_center)
+            # Montant attendu
+            if creance['montant_attendu'] == 'À déterminer':
+                worksheet.write(row, 4, 'À déterminer', cell_style_center)
+            else:
+                worksheet.write_number(row, 4, float(creance['montant_attendu']), cell_style_right)
+                sous_total_attendu += decimal.Decimal(str(creance['montant_attendu']))
+
+            # Montant payé
+            worksheet.write_number(row, 5, float(creance['montant_paye']), cell_style_right)
+            sous_total_paye += decimal.Decimal(str(creance['montant_paye']))
+
+            # Commentaire
+            commentaire = creance.get('commentaire', '')
+            worksheet.write(row, 6, commentaire, cell_style_left)
+
+            row += 1
+
+        # Locataire : une seule fois, fusionnée sur tout le groupe
+        if row - 1 > debut_groupe:
+            worksheet.merge_range(debut_groupe, 0, row - 1, 0, locataire_nom, cell_style_left)
         else:
-            worksheet.write_number(row, 4, float(creance['montant_attendu']), cell_style_right)
+            worksheet.write(debut_groupe, 0, locataire_nom, cell_style_left)
 
-        # Montant payé
-        worksheet.write_number(row, 5, float(creance['montant_paye']), cell_style_right)
-
-        # Commentaire
-        commentaire = creance.get('commentaire', '')
-        worksheet.write(row, 6, commentaire, cell_style_left)
-
-        row += 1
+        # Sous-total du locataire (uniquement si plusieurs lignes de créances)
+        if len(creances_locataire) > 1:
+            worksheet.write(row, 0, '', sous_total_vide_style)
+            worksheet.merge_range(row, 1, row, 3, f"Sous-total {locataire_nom}", sous_total_label_style)
+            worksheet.write_number(row, 4, float(sous_total_attendu), sous_total_montant_style)
+            worksheet.write_number(row, 5, float(sous_total_paye), sous_total_montant_style)
+            worksheet.write(row, 6, '', sous_total_vide_style)
+            row += 1
 
     # Écrire les totaux
     worksheet.merge_range(row, 0, row, 3, 'TOTAL', header_style)
@@ -3268,7 +3311,8 @@ def generer_excel_creances(request, liste_creances, context):
     worksheet.write_number(row, 5, float(context['total_paye']), total_style)
 
     # Reste à payer dans la colonne commentaire
-    worksheet.write(row, 6, f"Reste à payer: {float(context['total_manquant']):.2f} €", total_style)
+    from .templatetags.montant_filters import euros
+    worksheet.write(row, 6, f"Reste à payer: {euros(context['total_manquant'])}", total_style)
 
     # Ajuster la largeur des colonnes
     worksheet.set_column('A:A', 20)  # Locataire
