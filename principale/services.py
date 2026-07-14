@@ -13,6 +13,8 @@ from .models import Transaction, LocationBien, MontantOM, Locataire
 # ID du type de transaction "RECETTE - Dépôt de garantie" (caution versée).
 # Voir CLAUDE.md §9. Les transactions de caution n'ont pas de mois_concerne.
 TYPE_DEPOT_GARANTIE = 18
+# ID du type de transaction "DEPENSE - Rbt Dépôt garantie" (caution remboursée).
+TYPE_REMBOURSEMENT_CAUTION = 19
 
 
 def get_loyer_charges_bien(location, bien, annee, mois, revisions=None):

@@ -5,6 +5,7 @@ from .models import Bien, Locataire, Transaction, ParametresComptables, Parametr
 from .forms import BienForm, LocataireForm, TransactionForm, LocationBienForm, RevisionLoyerForm
 from .services import (
     TYPE_DEPOT_GARANTIE,
+    TYPE_REMBOURSEMENT_CAUTION,
     get_loyer_charges_bien,
     get_loyer_charges_effectifs,
     _calculer_releve,
@@ -252,6 +253,7 @@ def liste_locataires(request):
     # Précharger toutes les transactions de caution en une seule requête
     cautions_par_cle = {}
     for t in Transaction.objects.filter(
+        sci=request.current_sci,
         type_transaction_id=TYPE_DEPOT_GARANTIE
     ).order_by('date'):
         cautions_par_cle.setdefault((t.locataire_id, t.bien_id), []).append(t)
@@ -493,9 +495,8 @@ def generer_quittance(request, locataire_id):
         adresse_sci = parametres_sci.adresse
         code_postal_sci = parametres_sci.code_postal
 
-    # Loyer et charges attendus
-    loyer_attendu = bien.loyer_mensuel if bien and bien.loyer_mensuel else 0
-    charges_attendues = bien.montant_charges if bien and bien.montant_charges is not None else 0
+    # Loyer et charges attendus pour ce mois précis (révision de loyer / prorata premier mois inclus)
+    loyer_attendu, charges_attendues = get_loyer_charges_effectifs(location, bien, annee, mois)
 
     # Créer le PDF
     buffer = io.BytesIO()
@@ -937,13 +938,8 @@ def ajouter_transaction(request):
 
                 # Traitement spécial pour les transactions de type caution
                 if transaction.locataire and transaction.bien:
-                    type_transaction_categorie = transaction.type_transaction.categorie
-
                     # Si c'est une caution versée
-                    if (('caution' in type_transaction_nom or
-                         'dépôt de garantie' in type_transaction_nom or
-                         'depot de garantie' in type_transaction_nom) and
-                        type_transaction_categorie == 'RECETTE'):
+                    if transaction.type_transaction_id == TYPE_DEPOT_GARANTIE:
 
                         location = LocationBien.objects.filter(
                             locataire=transaction.locataire,
@@ -957,12 +953,7 @@ def ajouter_transaction(request):
                             messages.info(request, "Les informations de caution ont été automatiquement mises à jour.")
 
                     # Si c'est un remboursement de caution
-                    elif (('remboursement' in type_transaction_nom or
-                          'rbt' in type_transaction_nom or
-                          'restitution' in type_transaction_nom) and
-                          ('caution' in type_transaction_nom or
-                           'garantie' in type_transaction_nom) and
-                          type_transaction_categorie == 'DEPENSE'):
+                    elif transaction.type_transaction_id == TYPE_REMBOURSEMENT_CAUTION:
 
                         location = LocationBien.objects.filter(
                             locataire=transaction.locataire,
@@ -1044,12 +1035,7 @@ def modifier_transaction(request, transaction_id):
 
                 # Traitement spécial pour les cautions
                 if transaction.locataire and transaction.bien:
-                    type_transaction_categorie = transaction.type_transaction.categorie
-
-                    if (('caution' in type_transaction_nom or
-                         'dépôt de garantie' in type_transaction_nom or
-                         'depot de garantie' in type_transaction_nom) and
-                        type_transaction_categorie == 'RECETTE'):
+                    if transaction.type_transaction_id == TYPE_DEPOT_GARANTIE:
 
                         location = LocationBien.objects.filter(
                             locataire=transaction.locataire,
@@ -1062,12 +1048,7 @@ def modifier_transaction(request, transaction_id):
                             location.save()
                             messages.info(request, "Les informations de caution ont été automatiquement mises à jour.")
 
-                    elif (('remboursement' in type_transaction_nom or
-                          'rbt' in type_transaction_nom or
-                          'restitution' in type_transaction_nom) and
-                          ('caution' in type_transaction_nom or
-                           'garantie' in type_transaction_nom) and
-                          type_transaction_categorie == 'DEPENSE'):
+                    elif transaction.type_transaction_id == TYPE_REMBOURSEMENT_CAUTION:
 
                         location = LocationBien.objects.filter(
                             locataire=transaction.locataire,
@@ -1122,25 +1103,14 @@ def supprimer_transaction(request, transaction_id):
     if request.method == 'POST':
         # Avant de supprimer, vérifier s'il s'agit d'une transaction de caution
         # et stocker les informations pertinentes
-        type_transaction_obj = transaction.type_transaction
-        type_transaction_nom = type_transaction_obj.nom.lower() if type_transaction_obj else ""
-        type_transaction_categorie = type_transaction_obj.categorie if type_transaction_obj else ""
+        type_transaction_id_supprimee = transaction.type_transaction_id
 
         locataire_id = transaction.locataire_id if transaction.locataire else None
         bien_id = transaction.bien_id if transaction.bien else None
 
         # Vérifier si c'est une transaction de caution
-        est_caution_versee = (('caution' in type_transaction_nom or
-                              'dépôt de garantie' in type_transaction_nom or
-                              'depot de garantie' in type_transaction_nom) and
-                              type_transaction_categorie == 'RECETTE')
-
-        est_caution_remboursee = ((('remboursement' in type_transaction_nom or
-                                   'rbt' in type_transaction_nom or
-                                   'restitution' in type_transaction_nom) and
-                                  ('caution' in type_transaction_nom or
-                                   'garantie' in type_transaction_nom)) and
-                                 type_transaction_categorie == 'DEPENSE')
+        est_caution_versee = (type_transaction_id_supprimee == TYPE_DEPOT_GARANTIE)
+        est_caution_remboursee = (type_transaction_id_supprimee == TYPE_REMBOURSEMENT_CAUTION)
 
         # Supprimer la transaction
         transaction.delete()
@@ -1149,11 +1119,11 @@ def supprimer_transaction(request, transaction_id):
         # Mise à jour de la relation LocationBien correspondante si nécessaire
         if locataire_id and bien_id:
             if est_caution_versee:
-                # Chercher la location active
+                # Chercher la location correspondante (active ou non -- la transaction
+                # supprimée peut concerner une location déjà terminée depuis)
                 location = LocationBien.objects.filter(
                     locataire_id=locataire_id,
-                    bien_id=bien_id,
-                    date_sortie__isnull=True
+                    bien_id=bien_id
                 ).first()
 
                 if location:
@@ -1898,12 +1868,21 @@ def bilan_comptable_detaille(request):
     crl_montant = loyers_soumis_crl * decimal.Decimal('0.025')
 
     # Calcul du total des cautions versées et non restituées
-    cautions_total = Locataire.objects.filter(
-        biens__sci=request.current_sci,
-        montant_caution__isnull=False,
-        montant_caution__gt=0,
-        date_restitution_caution__isnull=True
-    ).aggregate(total=Sum('montant_caution'))['total'] or 0
+    # (basé sur les transactions réelles de type TYPE_DEPOT_GARANTIE, pas sur les
+    # anciens champs Locataire.montant_caution/date_restitution_caution qui ne sont
+    # plus jamais renseignés depuis que la saisie de caution passe par les transactions)
+    cautions_versees_par_cle = {
+        (row['locataire_id'], row['bien_id']): decimal.Decimal(str(row['total']))
+        for row in Transaction.objects.filter(
+            sci=request.current_sci,
+            type_transaction_id=TYPE_DEPOT_GARANTIE,
+        ).values('locataire_id', 'bien_id').annotate(total=Sum('montant'))
+    }
+    cautions_total = sum(
+        (cautions_versees_par_cle.get((loc.locataire_id, loc.bien_id), decimal.Decimal('0'))
+         for loc in LocationBien.objects.filter(bien__sci=request.current_sci, date_restitution_caution__isnull=True)),
+        decimal.Decimal('0')
+    )
 
     # Créer le contexte avec toutes les valeurs
     context = {
@@ -2596,7 +2575,7 @@ def changer_sci(request):
     return redirect('dashboard')
 
 def ajouter_location_bien(request, locataire_id):
-    locataire = get_object_or_404(Locataire, id=locataire_id)
+    locataire = get_object_or_404(Locataire, id=locataire_id, sci=request.current_sci)
 
     if request.method == 'POST':
         form = LocationBienForm(
@@ -2635,9 +2614,6 @@ def modifier_location_bien(request, location_id):
     location = get_object_or_404(LocationBien, id=location_id, bien__sci=request.current_sci)
     locataire = location.locataire
 
-    # Debug info
-    print(f"Modification de location - ID: {location.id}, date_entree: {location.date_entree}")
-
     if request.method == 'POST':
         form = LocationBienForm(
             request.POST,
@@ -2661,9 +2637,6 @@ def modifier_location_bien(request, location_id):
                 'date_restitution_caution': location.date_restitution_caution
             }
         )
-
-        # Vérifier ce qui se trouve dans initial après création du formulaire
-        print(f"Valeur initiale de date_entree dans le formulaire: {form.initial.get('date_entree')}")
 
     biens_data = {
         b.id: {'loyer': float(b.loyer_mensuel or 0), 'charges': float(b.montant_charges or 0)}
@@ -2779,7 +2752,7 @@ def supprimer_revision_loyer(request, revision_id):
 
 def get_biens_locataire(request, locataire_id):
     try:
-        locataire = Locataire.objects.get(id=locataire_id)
+        locataire = Locataire.objects.get(id=locataire_id, sci=request.current_sci)
         # Seuls les biens "ouverts" (location active, ou fermée mais pas encore
         # soldée) sont proposés -- une fois une location soldée/clôturée, on ne
         # doit plus pouvoir lui affecter de nouvelle transaction.
@@ -2812,9 +2785,10 @@ def apercu_impression_creances(request):
     else:
         date_fin = date.today()
 
+    # Comme l'onglet Créances : un locataire (même totalement parti) reste
+    # concerné tant qu'une de ses locations n'est pas soldée (voir services.locations_ouvertes).
     locataires = Locataire.objects.filter(
-        biens__sci=request.current_sci,
-        locations__date_sortie__isnull=True
+        biens__sci=request.current_sci
     ).distinct()
 
     commentaires = {}
@@ -2829,32 +2803,28 @@ def apercu_impression_creances(request):
     date_debut_logiciel = date(2025, 1, 1)
 
     for locataire in locataires:
-        biens_locataire = locataire.biens.filter(sci=request.current_sci)
+        blocs_ouverts = locations_ouvertes(locataire, request.current_sci)
 
-        if not biens_locataire.exists():
+        if not blocs_ouverts:
             continue
 
-        for bien in biens_locataire:
-            location = LocationBien.objects.filter(
-                locataire=locataire,
-                bien=bien,
-                date_sortie__isnull=True
-            ).prefetch_related('revisions_loyer').first()
-
-            if not location:
-                continue
+        for bloc in blocs_ouverts:
+            bien = bloc['bien']
+            location = bloc['location']
 
             revisions_location = list(location.revisions_loyer.all())
 
-            # Vérifier la caution — uniquement si un montant est défini
-            if not getattr(location, 'date_versement_caution', None):
-                montant_caution = None
-                if hasattr(location, 'montant_caution') and location.montant_caution is not None:
-                    montant_caution = location.montant_caution
-                elif hasattr(bien, 'montant_caution') and bien.montant_caution:
-                    montant_caution = bien.montant_caution
+            # Date de fin de vérification pour ce bien : la date de sortie si la
+            # location est terminée, sinon la date de fin demandée pour l'export.
+            date_fin_bien = min(date_fin, location.date_sortie) if location.date_sortie else date_fin
 
-                if montant_caution:
+            # Vérifier la caution — uniquement si un montant est défini
+            if not location.date_versement_caution:
+                # Priorité à Bien.montant_caution (source de vérité), LocationBien.montant_caution
+                # en repli seulement (champ historique) -- cf. CLAUDE.md.
+                montant_caution = bien.montant_caution if bien.montant_caution is not None else location.montant_caution
+
+                if montant_caution is not None and montant_caution > 0:
                     creance_id = f"caution_{locataire.id}_{bien.id}"
                     commentaire = commentaires.get(creance_id, '')
 
@@ -2880,7 +2850,7 @@ def apercu_impression_creances(request):
                 }
 
                 date_courante = date_debut_verification
-                while date_courante <= date_fin:
+                while date_courante <= date_fin_bien:
                     mois_a_verifier = date_courante.month
                     annee_a_verifier = date_courante.year
 
@@ -2962,12 +2932,13 @@ def apercu_impression_creances(request):
                     else:
                         date_courante = date(annee_a_verifier, mois_a_verifier + 1, 1)
 
-            # Vérification OM — pour TOUTES les années où un montant est défini (jusqu'à date_fin)
+            # Vérification OM — pour TOUTES les années où un montant est défini (jusqu'à la
+            # date de fin demandée, ou la date de sortie si la location est terminée avant)
             montants_om_locataire = MontantOM.objects.filter(
                 sci=request.current_sci,
                 locataire=locataire,
                 bien=bien,
-                annee__lte=date_fin.year
+                annee__lte=date_fin_bien.year
             )
 
             for om in montants_om_locataire:
@@ -3770,12 +3741,22 @@ def export_etat_cautions(request):
     # Générer l'export dans le format demandé
     format_export = request.GET.get('format', 'pdf')
 
-    # Récupérer toutes les locations (actives et terminées)
-    toutes_locations = LocationBien.objects.filter(
+    # Récupérer toutes les locations ayant eu un mouvement de caution (versée et/ou restituée).
+    # Le montant retenu est Bien.montant_caution (source de vérité) : LocationBien.montant_caution
+    # est un champ historique qui n'est plus renseigné pour les locations créées depuis que la
+    # saisie de caution passe uniquement par les transactions (cf. CLAUDE.md §10).
+    toutes_locations = list(LocationBien.objects.filter(
         bien__sci=request.current_sci,
-        montant_caution__isnull=False,
         date_versement_caution__isnull=False
-    ).order_by('-date_versement_caution')
+    ).select_related('bien', 'locataire').order_by('-date_versement_caution'))
+
+    for loc in toutes_locations:
+        if loc.bien.montant_caution is not None:
+            loc.montant_caution = loc.bien.montant_caution
+        elif loc.montant_caution is None:
+            # Ni le bien ni la location n'ont de montant de référence connu :
+            # on affiche 0 plutôt que de laisser un montant manquant planter l'export.
+            loc.montant_caution = decimal.Decimal('0')
 
     # Date de début et fin : 01/01 au 31/12 de l'année sélectionnée
     date_debut_annee = date(annee_selectionnee, 1, 1)
@@ -3783,33 +3764,30 @@ def export_etat_cautions(request):
 
     # Cautions en cours au 31/12/annee_selectionnee
     # = Versées avant ou pendant l'année ET (pas encore restituées OU restituées après le 31/12)
-    cautions_en_cours = toutes_locations.filter(
-        date_versement_caution__lte=date_fin_annee
-    ).filter(
-        Q(date_restitution_caution__isnull=True) |
-        Q(date_restitution_caution__gt=date_fin_annee)
-    )
+    cautions_en_cours = [
+        l for l in toutes_locations
+        if l.date_versement_caution <= date_fin_annee
+        and (l.date_restitution_caution is None or l.date_restitution_caution > date_fin_annee)
+    ]
 
     # Cautions restituées UNIQUEMENT pendant l'année sélectionnée (entre 01/01 et 31/12)
-    cautions_restituees = toutes_locations.filter(
-        date_restitution_caution__gte=date_debut_annee,
-        date_restitution_caution__lte=date_fin_annee
-    )
+    cautions_restituees = [
+        l for l in toutes_locations
+        if l.date_restitution_caution is not None
+        and date_debut_annee <= l.date_restitution_caution <= date_fin_annee
+    ]
 
     # Cautions encaissées pendant l'année sélectionnée
-    cautions_encaissees_annee = toutes_locations.filter(
-        date_versement_caution__gte=date_debut_annee,
-        date_versement_caution__lte=date_fin_annee
-    )
+    cautions_encaissees_annee = [
+        l for l in toutes_locations
+        if date_debut_annee <= l.date_versement_caution <= date_fin_annee
+    ]
 
-    # Cautions remboursées pendant l'année sélectionnée
-    cautions_remboursees_annee = toutes_locations.filter(
-        date_restitution_caution__gte=date_debut_annee,
-        date_restitution_caution__lte=date_fin_annee
-    )
+    # Cautions remboursées pendant l'année sélectionnée (même définition que cautions_restituees)
+    cautions_remboursees_annee = cautions_restituees
 
     # Total détenu au 31/12/annee_selectionnee
-    total_cautions_detenues = sum(l.montant_caution for l in cautions_en_cours if l.montant_caution)
+    total_cautions_detenues = sum(l.montant_caution for l in cautions_en_cours if l.montant_caution is not None)
 
     # Total détenu au 31/12/(annee_selectionnee-1)
     # = Total détenu actuellement - encaissé cette année + remboursé cette année
@@ -3817,17 +3795,17 @@ def export_etat_cautions(request):
 
     # Soustraire les cautions encaissées cette année
     for location in cautions_encaissees_annee:
-        if location.montant_caution:
+        if location.montant_caution is not None:
             total_cautions_debut_annee -= location.montant_caution
 
     # Ajouter les cautions remboursées cette année
     for location in cautions_remboursees_annee:
-        if location.montant_caution:
+        if location.montant_caution is not None:
             total_cautions_debut_annee += location.montant_caution
 
     # Calculer les totaux des montants
-    total_encaisse_annee = sum(l.montant_caution for l in cautions_encaissees_annee if l.montant_caution)
-    total_rembourse_annee = sum(l.montant_caution for l in cautions_remboursees_annee if l.montant_caution)
+    total_encaisse_annee = sum(l.montant_caution for l in cautions_encaissees_annee if l.montant_caution is not None)
+    total_rembourse_annee = sum(l.montant_caution for l in cautions_remboursees_annee if l.montant_caution is not None)
 
     # Préparer le contexte
     context = {
@@ -4688,6 +4666,12 @@ def gestion_om(request):
                         bien_id = int(parts[2])
                         montant_str = value.strip().replace(',', '.')
 
+                        # Le locataire/bien doit appartenir à la SCI active, pour éviter
+                        # de rattacher par erreur un MontantOM d'une autre SCI.
+                        if not Locataire.objects.filter(id=locataire_id, sci=request.current_sci).exists() \
+                                or not Bien.objects.filter(id=bien_id, sci=request.current_sci).exists():
+                            continue
+
                         if montant_str == '':
                             MontantOM.objects.filter(
                                 sci=request.current_sci,
@@ -4725,27 +4709,29 @@ def gestion_om(request):
         Q(date_sortie__isnull=True) | Q(date_sortie__gte=debut_annee)
     ).select_related('locataire', 'bien').order_by('locataire__nom', 'locataire__prenom')
 
+    # Préchargement groupé (au lieu d'interroger 2 fois par location dans la boucle)
+    montants_attendus_par_cle = {
+        (m['locataire_id'], m['bien_id']): m['montant_attendu']
+        for m in MontantOM.objects.filter(
+            sci=request.current_sci, annee=annee_selectionnee
+        ).values('locataire_id', 'bien_id', 'montant_attendu')
+    }
+    montants_payes_par_cle = {
+        (p['locataire_id'], p['bien_id']): p['total']
+        for p in Transaction.objects.filter(
+            bien__sci=request.current_sci,
+            type_transaction__nom__icontains='OM',
+            type_transaction__categorie='RECETTE',
+            mois_concerne__year=annee_selectionnee
+        ).values('locataire_id', 'bien_id').annotate(total=Sum('montant'))
+    }
+
     for location in locations_annee:
         locataire = location.locataire
         bien = location.bien
 
-        montant_om = MontantOM.objects.filter(
-            sci=request.current_sci,
-            locataire=locataire,
-            bien=bien,
-            annee=annee_selectionnee
-        ).first()
-
-        montant_attendu = montant_om.montant_attendu if montant_om else None
-
-        paiements_om = Transaction.objects.filter(
-            locataire=locataire,
-            bien=bien,
-            type_transaction__nom__icontains='OM',
-            type_transaction__categorie='RECETTE',
-            mois_concerne__year=annee_selectionnee
-        )
-        montant_paye = sum(p.montant for p in paiements_om)
+        montant_attendu = montants_attendus_par_cle.get((locataire.id, bien.id))
+        montant_paye = montants_payes_par_cle.get((locataire.id, bien.id), decimal.Decimal('0'))
 
         if montant_attendu is None:
             statut = "Non défini"
@@ -4803,7 +4789,13 @@ def save_montant_om(request):
         bien_id = int(parts[2])
     except ValueError:
         return JsonResponse({'ok': False, 'error': 'Identifiants invalides'}, status=400)
-    
+
+    # Le locataire/bien doit appartenir à la SCI active, pour éviter de rattacher
+    # par erreur un MontantOM d'une autre SCI.
+    if not Locataire.objects.filter(id=locataire_id, sci=request.current_sci).exists() \
+            or not Bien.objects.filter(id=bien_id, sci=request.current_sci).exists():
+        return JsonResponse({'ok': False, 'error': 'Locataire ou bien invalide pour cette SCI'}, status=400)
+
     try:
         if value == '':
             MontantOM.objects.filter(

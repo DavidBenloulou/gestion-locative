@@ -297,17 +297,13 @@ class LocationBienForm(forms.ModelForm):
                 ).values_list('bien_id', flat=True)
 
                 queryset = Bien.objects.filter(sci=sci).exclude(id__in=biens_occupes)
-                print(f"Biens vacants pour SCI {sci.id}: {queryset.count()}")
             else:
                 queryset = Bien.objects.filter(sci=sci)
-                print(f"Biens disponibles pour SCI {sci.id}: {queryset.count()}")
 
             self.fields['bien'].queryset = queryset
 
             # Personnalisation de l'affichage avec le numéro entre le type et l'adresse
             self.fields['bien'].label_from_instance = lambda obj: f"{obj.get_type_bien_display()} - {obj.adresse} - {obj.numero}" if obj.numero else f"{obj.get_type_bien_display()} - {obj.adresse}"
-        else:
-            print("Aucune SCI fournie pour filtrer les biens")
 
         # Désactiver explicitement les attributs readonly et disabled
         for field_name, field in self.fields.items():
