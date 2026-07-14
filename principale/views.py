@@ -272,6 +272,9 @@ def supprimer_bien(request, bien_id):
 
 def liste_locataires(request):
     """Vue pour la liste des locataires - OPTIMISÉE"""
+    afficher_tous = request.GET.get('tous') == '1'
+    annee_courante = date.today().year
+
     locataires = Locataire.objects.filter(
         sci=request.current_sci
     ).prefetch_related(
@@ -295,7 +298,23 @@ def liste_locataires(request):
             location.caution_nb_versements = len(trans_caution)
             location.caution_premiere_date = trans_caution[0].date if trans_caution else None
 
-    return render(request, 'principale/liste_locataires.html', {'locataires': locataires})
+    if not afficher_tous:
+        def garder_locataire(locataire):
+            """Garde les locataires actifs et ceux sortis dans l'année en cours"""
+            locations = list(locataire.locations.all())  # utilise le cache prefetch, pas de requête
+            if not locations:
+                return True
+            if any(location.date_sortie is None for location in locations):
+                return True
+            return max(location.date_sortie for location in locations).year == annee_courante
+
+        locataires = [locataire for locataire in locataires if garder_locataire(locataire)]
+
+    return render(request, 'principale/liste_locataires.html', {
+        'locataires': locataires,
+        'afficher_tous': afficher_tous,
+        'annee_courante': annee_courante,
+    })
 
 def detail_locataire(request, locataire_id):
     """Vue pour le détail d'un locataire - OPTIMISÉE"""
