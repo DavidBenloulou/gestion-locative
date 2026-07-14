@@ -3323,6 +3323,15 @@ def generer_excel_creances(request, liste_creances, context):
     worksheet.set_column('F:F', 15)  # Montant payé
     worksheet.set_column('G:G', 30)  # Commentaire
 
+    # Mise en page pour l'impression (A4 paysage, tenant sur la largeur d'une page,
+    # avec les lignes de titre et d'en-tête répétées sur chaque page imprimée)
+    worksheet.set_landscape()
+    worksheet.set_paper(9)  # 9 = A4
+    worksheet.fit_to_pages(1, 0)  # 1 page de large, hauteur illimitée
+    worksheet.set_margins(left=0.5, right=0.5, top=0.75, bottom=0.75)
+    worksheet.center_horizontally()
+    worksheet.repeat_rows(0, 3)  # Titre, date et en-têtes de colonnes répétés sur chaque page
+
     # Fermer le classeur
     workbook.close()
 
